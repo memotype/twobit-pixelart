@@ -1,0 +1,18 @@
+{
+  "globs": [
+    "**/*.md",
+    "!APP.md",
+    "!CODEX.md",
+    "!REPO.md",
+    "!node_modules/**"
+  ],
+  "config": {
+    "default": true,
+    "MD032": false,
+    "MD013": {
+      "line_length": 80,
+      "code_blocks": false,
+      "tables": false,
+    },
+  },
+}

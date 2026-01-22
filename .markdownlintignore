@@ -1,0 +1,10 @@
+node_modules
+.git
+.expo
+.expo-shared
+dist
+build
+coverage
+APP.md
+CODEX.md
+REPO.md

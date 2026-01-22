@@ -1,0 +1,4 @@
+## App debug commands
+
+adb logcat -c
+adb logcat -d -v time *:E | findstr /I "<APPNAME> exception fatal gl expo crash"

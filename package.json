@@ -1,0 +1,52 @@
+{
+    "name":  "twobit-pixelart",
+    "version":  "4.19.0",
+    "private":  true,
+    "description":  "Baseline template for TypeScript and Expo tooling.",
+    "main":  "expo/AppEntry.js",
+    "packageManager":  "npm@10.8.2",
+    "engines":  {
+                    "node":  "20.19.6"
+                },
+    "scripts":  {
+                    "preinstall":  "node ./scripts/ensure-npm.cjs",
+                    "start":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 expo start",
+                    "start:clear":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 expo start -c",
+                    "start:tunnel":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 expo start --tunnel",
+                    "doctor":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 expo-doctor",
+                    "lint":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 eslint .",
+                    "format":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 prettier --check .",
+                    "format:write":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 prettier --write .",
+                    "typecheck":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 tsc --noEmit",
+                    "typecheck:script":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 node ./scripts/typecheck.cjs",
+                    "md:lint":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 markdownlint --config .markdownlint.yaml \"**/*.md\"",
+                    "md:lint:cli2":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 markdownlint-cli2"
+                },
+    "dependencies":  {
+                         "expo":  "~54.0.31",
+                         "expo-file-system":  "~18.1.2",
+                         "expo-sharing":  "~13.1.2",
+                         "pako":  "^2.1.0",
+                         "expo-status-bar":  "~3.0.9",
+                         "react":  "19.1.0",
+                         "react-native":  "0.81.5",
+                         "react-native-svg":  "15.13.0",
+                         "yaml":  "^2.8.1"
+                     },
+    "devDependencies":  {
+                            "@eslint/js":  "^9.39.2",
+                            "@types/react":  "~19.1.10",
+                            "@types/pako":  "^2.0.3",
+                            "babel-preset-expo":  "^54.0.10",
+                            "eslint":  "^9.39.2",
+                            "eslint-config-prettier":  "^10.1.8",
+                            "eslint-plugin-react":  "^7.37.5",
+                            "eslint-plugin-react-hooks":  "^7.0.1",
+                            "expo-doctor":  "^1.17.14",
+                            "markdownlint-cli":  "^0.47.0",
+                            "markdownlint-cli2":  "^0.14.0",
+                            "prettier":  "^3.7.4",
+                            "typescript":  "^5.9.3",
+                            "typescript-eslint":  "^8.50.1"
+                        }
+}

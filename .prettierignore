@@ -1,0 +1,10 @@
+node_modules/
+package-lock.json
+APP.md
+CODEX.md
+REPO.md
+dist/
+build/
+coverage/
+.expo/
+.expo-shared/

@@ -1,0 +1,12 @@
+{
+    "expo":  {
+                 "name":  "twobit-pixelart",
+                 "slug":  "twobit-pixelart",
+                 "version":  "4.19.0",
+                 "orientation":  "portrait",
+                 "userInterfaceStyle":  "light",
+                 "assetBundlePatterns":  [
+                                             "**/*"
+                                         ]
+             }
+}
