@@ -44,6 +44,7 @@ TEMPLATE SYNC WHITELIST (core):
 - scripts/ensure-npm.cjs
 - scripts/typecheck.cjs
 - scripts/init-project.ps1
+- scripts/sync-deps.ps1
 - scripts/sync-template.ps1
 - scripts/publish-pages.ps1
 - .vscode/settings.json
@@ -157,6 +158,22 @@ This project prioritizes reproducible builds, predictable CI behavior, and
 long-term maintainability over package-manager flexibility. Introducing
 multiple package managers is considered a source of technical risk and is
 intentionally disallowed.
+
+### Dependency Update Protocol
+
+When `package.json` changes, you MUST:
+
+- run `npm install` to update `package-lock.json`
+- commit both `package.json` and `package-lock.json` together
+
+CI MUST fail if `package.json` and `package-lock.json` are out of sync.
+
+For app repos, use `scripts/sync-deps.ps1` to align dependencies with the
+template and regenerate the lockfile.
+
+Example:
+
+`powershell -File scripts/sync-deps.ps1 -TemplateRef v4.19.1`
 
 ### Use of npx
 
