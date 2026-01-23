@@ -30,3 +30,8 @@ Current state notes for handoff.
 
 - Tests last run: 2026-01-23
   - `npm run doctor`, `npm run lint`, `npm run typecheck`, `npm run md:lint`.
+
+## Notes
+
+- Explicit save crash window (between canonical->bak and tmp->canonical moves)
+  is expected to be milliseconds (typically < 100 ms) and is acceptable.

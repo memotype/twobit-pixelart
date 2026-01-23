@@ -19,6 +19,7 @@ import * as Sharing from 'expo-sharing';
 import type { ProjectRuntime } from '../../lib/project/types';
 import { isTransparent } from '../../lib/project/palette';
 import {
+  deleteProject,
   deleteWorkingCopy,
   saveProjectExplicit,
   saveWorkingCopy,
@@ -61,7 +62,7 @@ export function EditorScreen({
   const [selectedIndex, setSelectedIndex] = useState(1);
   const [undoState, setUndoState] = useState(createUndoState());
   const [isDirty, setIsDirty] = useState(false);
-  const [isSessionNew] = useState(isNewProject);
+  const [isSessionNew, setIsSessionNew] = useState(isNewProject);
   const [pixels, setPixels] = useState<Uint32Array>(
     () => new Uint32Array(project.pixels),
   );
@@ -199,14 +200,18 @@ export function EditorScreen({
 
   const explicitSaveAndExit = useCallback(async () => {
     await saveProjectExplicit(renderProject);
+    setIsSessionNew(false);
     setIsDirty(false);
     onExit();
   }, [onExit, renderProject]);
 
   const discardAndExit = useCallback(async () => {
+    if (isSessionNew) {
+      await deleteProject(renderProject.id);
+    }
     await deleteWorkingCopy(renderProject.id);
     onExit();
-  }, [onExit, renderProject.id]);
+  }, [isSessionNew, onExit, renderProject.id]);
 
   const requestExit = useCallback(() => {
     if (!isDirty && !isSessionNew) {
