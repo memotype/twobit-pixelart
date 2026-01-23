@@ -23,7 +23,7 @@
                     "md:lint:cli2":  "node ./scripts/ensure-npm.cjs --runtime \u0026\u0026 markdownlint-cli2"
                 },
     "dependencies":  {
-                         "expo":  "~54.0.31",
+                         "expo":  "~54.0.32",
                          "expo-file-system":  "~18.1.2",
                          "expo-sharing":  "~13.1.2",
                          "pako":  "^2.1.0",
