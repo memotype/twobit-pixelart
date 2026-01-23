@@ -64,11 +64,11 @@ function Merge-Section {
     if ($exists.Count -gt 0) {
       $current_value = $target_section.$name
       if ($current_value -ne $template_value) {
-        $updated.Value += "$section:$name $current_value -> $template_value"
+        $updated.Value += "${section}:${name} $current_value -> $template_value"
       }
       $target_section.$name = $template_value
     } else {
-      $added.Value += "$section:$name $template_value"
+      $added.Value += "${section}:${name} $template_value"
       $target_section | Add-Member -MemberType NoteProperty -Name $name `
         -Value $template_value
     }
