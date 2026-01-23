@@ -16,7 +16,11 @@ import {
   deleteProject,
   listProjects,
   loadProject,
+  loadWorkingCopy,
+  cleanupTmpFiles,
   saveProject,
+  workingCopyExists,
+  deleteWorkingCopy,
 } from '../../lib/storage/projectStorage';
 
 interface GalleryScreenProps {
@@ -60,6 +64,37 @@ export function GalleryScreen({
     void refresh();
   }, [refresh, refreshKey]);
 
+  const openProjectWithRecoveryPrompt = useCallback(
+    async (id: string) => {
+      await cleanupTmpFiles();
+      const hasWorkingCopy = await workingCopyExists(id);
+      if (!hasWorkingCopy) {
+        const project = await loadProject(id);
+        onOpen(project, false);
+        return;
+      }
+      Alert.alert('Restore unsaved changes?', undefined, [
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteWorkingCopy(id);
+            const project = await loadProject(id);
+            onOpen(project, false);
+          },
+        },
+        {
+          text: 'Restore',
+          onPress: async () => {
+            const project = await loadWorkingCopy(id);
+            onOpen(project, false);
+          },
+        },
+      ]);
+    },
+    [onOpen],
+  );
+
   const handleCreate = useCallback(async () => {
     const nextWidth = clampInt(width, 32);
     const nextHeight = clampInt(height, 32);
@@ -71,10 +106,9 @@ export function GalleryScreen({
 
   const handleOpen = useCallback(
     async (id: string) => {
-      const project = await loadProject(id);
-      onOpen(project, false);
+      await openProjectWithRecoveryPrompt(id);
     },
-    [onOpen],
+    [openProjectWithRecoveryPrompt],
   );
 
   const handleDelete = useCallback(async (id: string, title: string) => {

@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system/legacy';
+
 import type { ProjectRuntime } from '../project/types';
 import { isTransparent } from '../project/palette';
 import { mergeRects } from '../project/mergeRects';
@@ -97,4 +99,22 @@ export function exportSvg(project: ProjectRuntime): string {
   lines.push('  </g>');
   lines.push('</svg>');
   return lines.join('\n');
+}
+
+function sanitizeFilename(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    return 'pixel_forge';
+  }
+  return trimmed.replace(/\s+/g, '_');
+}
+
+export async function exportSvgFile(
+  project: ProjectRuntime,
+): Promise<string> {
+  const svg = exportSvg(project);
+  const filename = `${sanitizeFilename(project.name)}.svg`;
+  const path = `${FileSystem.cacheDirectory}${filename}`;
+  await FileSystem.writeAsStringAsync(path, svg);
+  return path;
 }

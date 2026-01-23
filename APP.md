@@ -68,6 +68,117 @@ Two screens only:
    - Export: SVG + PNG (scale: 1x, 2x, 4x, 8x).
    - Autosave with visible status text.
 
+
+## Persistence and back-button behavior (YAML-first, copy-on-write)
+
+### Goals
+
+- Never overwrite the user's canonical project file implicitly.
+- Autosave MUST be copy-on-write:
+  - write to a per-project temporary "working copy"
+  - keep the canonical project file untouched until explicit Save
+- Recovery:
+  - on open, if a working copy exists, prompt the user to restore it
+  - working copies allow crash/power-loss recovery
+
+### File roles
+
+- Canonical project file (authoritative, user-facing):
+  - `<id>.pfx.yaml`
+- Working copy (autosave target, crash recovery):
+  - `<id>.pfx.working.yaml`
+- Backup (optional, used only during explicit Save to reduce risk):
+  - `<id>.pfx.bak.yaml`
+
+### Naming requirements
+
+- File naming MUST be stable and predictable for detection.
+- Working copy name MUST be derived solely from the canonical project id.
+- Canonical, working, backup, and staging (*.tmp) files for a project MUST live
+  in the same directory to preserve move/rename semantics.
+
+### Autosave rules
+
+- Autosave writes only to the working copy.
+- Autosave MUST use a best-effort atomic replace strategy at the file level:
+  - write to `<id>.pfx.working.yaml.tmp`
+  - then rename/move to `<id>.pfx.working.yaml` (same directory)
+- Autosave MUST NOT modify or replace the canonical file.
+- The working copy `<id>.pfx.working.yaml` is the ONLY file used for restore.
+- `*.tmp` files are staging only and MUST NOT be used for restore prompts.
+- Autosave is not considered successful until the `.tmp` has been moved into the
+  working copy path.
+
+### Explicit Save rules (user confirmed)
+
+When the user chooses Save (including via back-button prompt):
+- The canonical file MUST be replaced atomically.
+- Procedure (same directory):
+  1) Write canonical temp: `<id>.pfx.yaml.tmp`
+  2) Rename canonical -> backup: `<id>.pfx.yaml` -> `<id>.pfx.bak.yaml`
+  3) Rename temp -> canonical: `<id>.pfx.yaml.tmp` -> `<id>.pfx.yaml`
+  4) Delete working copy: `<id>.pfx.working.yaml`
+  5) Delete backup (or keep only briefly; if kept, it MUST be bounded and
+     cleaned up on next successful save)
+
+Notes:
+- Prefer rename/move operations within the same directory to maximize atomicity.
+- If any step fails, the app MUST preserve at least one valid version:
+  canonical or backup, and must not leave the project in a corrupted state.
+
+### Open / restore behavior
+
+When opening a project:
+- If `<id>.pfx.working.yaml` exists, prompt:
+  - Restore unsaved changes (loads working copy into editor)
+  - Discard unsaved changes (deletes working copy, loads canonical)
+- On startup/open, any leftover `*.tmp` files MUST be deleted.
+- Restore prompts are triggered ONLY by the presence of `<id>.pfx.working.yaml`.
+- Backup files (`*.bak.yaml`) are internal safety artifacts and MUST NOT be used
+  for restore prompts or user-facing recovery.
+
+### Hardware back button behavior (Editor screen)
+
+- Back button MUST NOT silently discard edits.
+- Back button MUST follow this pseudocode:
+
+```pseudocode
+on_back():
+  if !isEditorScreen:
+    default_back()
+    return
+
+  if isNewProject:
+    choice := present_save_discard_cancel()
+  else if isDirty:
+    choice := present_save_discard_cancel()
+  else:
+    close_editor_return_to_gallery()
+    return
+
+  if choice == CANCEL:
+    return
+
+  if choice == SAVE:
+    explicit_save_atomic()
+    close_editor_return_to_gallery()
+    return
+
+  if choice == DISCARD:
+    delete_working_copy()
+    close_editor_return_to_gallery()
+    return
+```
+
+Implementation note (Expo FileSystem legacy):
+- Use expo-file-system/legacy APIs.
+- Best-effort atomic replace MUST be implemented as:
+  write to *.tmp -> (delete destination if exists) -> moveAsync tmp into place,
+  always within the same directory.
+- moveAsync MUST NOT assume overwrite; delete destination first (idempotent).
+- isDirty: editor state differs from the last explicit Save (canonical
+  baseline), NOT merely from the most recent autosave.
+
 ## Internal pixel model (runtime)
 
 Avoid per-pixel React components.

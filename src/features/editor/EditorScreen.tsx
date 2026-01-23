@@ -14,13 +14,16 @@ import {
   Text,
   View,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 import type { ProjectRuntime } from '../../lib/project/types';
 import { isTransparent } from '../../lib/project/palette';
-import { deleteProject, saveProject } from '../../lib/storage/projectStorage';
-import { exportSvg } from '../../lib/export/svgExport';
+import {
+  deleteWorkingCopy,
+  saveProjectExplicit,
+  saveWorkingCopy,
+} from '../../lib/storage/projectStorage';
+import { exportSvgFile } from '../../lib/export/svgExport';
 import { exportPng, sharePng, type PngScale } from '../../lib/export/pngExport';
 import { CanvasView } from './CanvasView';
 import { PalettePicker } from './PalettePicker';
@@ -83,8 +86,7 @@ export function EditorScreen({
   );
 
   const autosave = useAutosave(async () => {
-    await saveProject(renderProject);
-    setIsDirty(false);
+    await saveWorkingCopy(renderProject);
   }, AUTOSAVE_DELAY_MS);
 
   const applyPixel = useCallback(
@@ -195,24 +197,60 @@ export function EditorScreen({
     autosave.markDirty();
   }, [autosave]);
 
-  const saveBeforeExit = useCallback(async () => {
-    await saveProject(renderProject);
+  const explicitSaveAndExit = useCallback(async () => {
+    await saveProjectExplicit(renderProject);
     setIsDirty(false);
     onExit();
   }, [onExit, renderProject]);
 
   const discardAndExit = useCallback(async () => {
-    if (isSessionNew) {
-      await deleteProject(renderProject.id);
-    }
+    await deleteWorkingCopy(renderProject.id);
     onExit();
-  }, [isSessionNew, onExit, renderProject.id]);
+  }, [onExit, renderProject.id]);
+
+  const requestExit = useCallback(() => {
+    if (!isDirty && !isSessionNew) {
+      onExit();
+      return;
+    }
+    if (promptOpenRef.current) {
+      return;
+    }
+    promptOpenRef.current = true;
+    Alert.alert('Unsaved changes', undefined, [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+        onPress: () => {
+          promptOpenRef.current = false;
+        },
+      },
+      {
+        text: 'Discard',
+        style: 'destructive',
+        onPress: () => {
+          promptOpenRef.current = false;
+          void discardAndExit();
+        },
+      },
+      {
+        text: 'Save',
+        onPress: () => {
+          promptOpenRef.current = false;
+          void explicitSaveAndExit();
+        },
+      },
+    ]);
+  }, [
+    discardAndExit,
+    explicitSaveAndExit,
+    isDirty,
+    isSessionNew,
+    onExit,
+  ]);
 
   const handleExportSvg = useCallback(async () => {
-    const svg = exportSvg(renderProject);
-    const filename = `${renderProject.name.replace(/\s+/g, '_')}.svg`;
-    const path = `${FileSystem.cacheDirectory}${filename}`;
-    await FileSystem.writeAsStringAsync(path, svg);
+    const path = await exportSvgFile(renderProject);
     const available = await Sharing.isAvailableAsync();
     if (available) {
       await Sharing.shareAsync(path, {
@@ -242,35 +280,11 @@ export function EditorScreen({
 
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!isDirty && !isSessionNew) {
-        onExit();
-        return true;
-      }
-      if (promptOpenRef.current) {
-        return true;
-      }
-      promptOpenRef.current = true;
-      Alert.alert('Unsaved changes', undefined, [
-        {
-          text: 'Discard',
-          style: 'destructive',
-          onPress: () => {
-            promptOpenRef.current = false;
-            void discardAndExit();
-          },
-        },
-        {
-          text: 'Save',
-          onPress: () => {
-            promptOpenRef.current = false;
-            void saveBeforeExit();
-          },
-        },
-      ]);
+      requestExit();
       return true;
     });
     return () => handler.remove();
-  }, [discardAndExit, isDirty, isSessionNew, onExit, saveBeforeExit]);
+  }, [requestExit]);
 
   return (
     <View
@@ -297,7 +311,7 @@ export function EditorScreen({
               styles.exitButton,
               { backgroundColor: theme.colors.primary },
             ]}
-            onPress={saveBeforeExit}
+            onPress={requestExit}
           >
             <Text
               style={[
