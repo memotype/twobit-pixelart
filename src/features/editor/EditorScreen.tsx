@@ -58,7 +58,7 @@ export function EditorScreen({
   const [selectedIndex, setSelectedIndex] = useState(1);
   const [undoState, setUndoState] = useState(createUndoState());
   const [isDirty, setIsDirty] = useState(false);
-  const [isNew, setIsNew] = useState(isNewProject);
+  const [isSessionNew] = useState(isNewProject);
   const [pixels, setPixels] = useState<Uint32Array>(
     () => new Uint32Array(project.pixels),
   );
@@ -85,7 +85,6 @@ export function EditorScreen({
   const autosave = useAutosave(async () => {
     await saveProject(renderProject);
     setIsDirty(false);
-    setIsNew(false);
   }, AUTOSAVE_DELAY_MS);
 
   const applyPixel = useCallback(
@@ -199,16 +198,15 @@ export function EditorScreen({
   const saveBeforeExit = useCallback(async () => {
     await saveProject(renderProject);
     setIsDirty(false);
-    setIsNew(false);
     onExit();
   }, [onExit, renderProject]);
 
   const discardAndExit = useCallback(async () => {
-    if (isNew) {
+    if (isSessionNew) {
       await deleteProject(renderProject.id);
     }
     onExit();
-  }, [isNew, onExit, renderProject.id]);
+  }, [isSessionNew, onExit, renderProject.id]);
 
   const handleExportSvg = useCallback(async () => {
     const svg = exportSvg(renderProject);
@@ -244,7 +242,7 @@ export function EditorScreen({
 
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!isDirty && !isNew) {
+      if (!isDirty && !isSessionNew) {
         onExit();
         return true;
       }
@@ -272,7 +270,7 @@ export function EditorScreen({
       return true;
     });
     return () => handler.remove();
-  }, [discardAndExit, isDirty, isNew, onExit, saveBeforeExit]);
+  }, [discardAndExit, isDirty, isSessionNew, onExit, saveBeforeExit]);
 
   return (
     <View
