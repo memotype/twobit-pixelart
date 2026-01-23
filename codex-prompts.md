@@ -57,11 +57,12 @@ REMOTE_URL=git@github.com:memotype/<NEW_APP_NAME>.git
 We need to sync template-managed files from the app-template repo into this
 project. Follow `CODEX.md` and `REPO.md` rules.
 
-Target template (in order of preference):
+Target template: default to local `../app-template/`. The whitelist source is
+the `scripts/sync-template.ps1` file from the chosen template ref. When using
+local, use whatever is currently checked out there and do not ask for a ref.
 
-- local: `../app-template/` (preferred; used automatically by the script)
+- local: `../app-template/` (default; use whatever is currently checked out)
 - remote: `git@github.com:memotype/twobit-app-template.git`
-  - ref: `main` unless `-TemplateRef` overrides it.
 
 Rules:
 
@@ -69,22 +70,31 @@ Rules:
 - Do not modify `APP.md`, `README.md`, or any project-owned files.
 - Overwriting `CODEX.md` and `REPO.md` is allowed only as part of template
   sync using the whitelist and sync script.
-- Use the dedicated sync script at `scripts/sync-template.ps1`.
-- Commit with message: "Sync template <ref>"
+- Use the dedicated sync script at `scripts/sync-template.ps1` from the
+  chosen template ref (it contains the authoritative whitelist).
+- Commit with message: "Sync template `ref`"
 
 Steps:
 
 1. Read `CODEX.md`, `REPO.md`, `APP.md`. Stop and report conflicts.
 2. If working tree is not clean, ask whether to commit or stash app changes.
    Do not discard anything without explicit instruction.
-3. Always refresh `scripts/sync-template.ps1` from the template at the chosen
-   ref before running sync (copy it even if it already exists). This avoids
-   stale whitelists or missing-file errors.
-4. Run: `./scripts/sync-template.ps1`
+3. Ensure the local template exists:
+   - If `../app-template` exists, use it as-is and do not ask for a ref.
+   - If it does not exist, use remote `main` by default.
+4. Run:
+   - local: `powershell -File scripts/sync-template.ps1`
+   - remote: `powershell -File scripts/sync-template.ps1 -TemplateRef main`
 5. Review git status and git diff. Only whitelist files should change.
 6. If any non-whitelist file changes, stop and report.
-7. Commit with message: "Sync template <ref>" where <ref> is the ref used.
+7. Commit with message: "Sync template ref" (use the actual ref if known,
+   otherwise use "Sync template (local)").
 8. Push to main.
 
-Report what changed and list the files updated.
+Optional deps alignment:
+
+- Run: `powershell -File scripts/sync-deps.ps1` (if local), or
+  `powershell -File scripts/sync-deps.ps1 -TemplateRef main` (if remote)
+- Commit `package.json` + `package-lock.json` together with message
+  "Sync deps ref" (or "Sync deps (local)").
 ```

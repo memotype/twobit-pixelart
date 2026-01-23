@@ -35,6 +35,7 @@ $whitelist = @(
   'scripts/ensure-npm.cjs',
   'scripts/typecheck.cjs',
   'scripts/init-project.ps1',
+  'scripts/sync-deps.ps1',
   'scripts/sync-template.ps1',
   'scripts/publish-pages.ps1',
   '.vscode/settings.json',
