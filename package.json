@@ -24,13 +24,13 @@
                 },
     "dependencies":  {
                          "expo":  "~54.0.32",
-                         "expo-file-system":  "~18.1.2",
-                         "expo-sharing":  "~13.1.2",
+                         "expo-file-system":  "~19.0.21",
+                         "expo-sharing":  "~14.0.8",
                          "pako":  "^2.1.0",
                          "expo-status-bar":  "~3.0.9",
                          "react":  "19.1.0",
                          "react-native":  "0.81.5",
-                         "react-native-svg":  "15.13.0",
+                         "react-native-svg":  "^15.12.1",
                          "yaml":  "^2.8.1"
                      },
     "devDependencies":  {
