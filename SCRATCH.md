@@ -35,3 +35,7 @@ Current state notes for handoff.
 
 - Explicit save crash window (between canonical->bak and tmp->canonical moves)
   is expected to be milliseconds (typically < 100 ms) and is acceptable.
+
+## Outstanding issues
+
+- See `ISSUES.md` (Gallery timestamp format, create button color contrast).
