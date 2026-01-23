@@ -175,16 +175,11 @@ export function GalleryScreen({
         <Pressable
           style={[
             styles.primaryButton,
-            { backgroundColor: theme.colors.primary },
+            { backgroundColor: '#c6c6c6' },
           ]}
           onPress={handleCreate}
         >
-          <Text
-            style={[
-              styles.primaryButtonText,
-              { color: theme.colors.primaryText },
-            ]}
-          >
+          <Text style={[styles.primaryButtonText, { color: '#111111' }]}>
             Create
           </Text>
         </Pressable>

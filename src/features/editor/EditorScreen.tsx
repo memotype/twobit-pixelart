@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import {
   Alert,
+  BackHandler,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -221,6 +222,14 @@ export function EditorScreen({
         return 'Autosave idle';
     }
   }, [autosave.status]);
+
+  useEffect(() => {
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      onExit();
+      return true;
+    });
+    return () => handler.remove();
+  }, [onExit]);
 
   return (
     <View
