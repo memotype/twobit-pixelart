@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { SafeAreaView, StyleSheet, useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 import type { ProjectRuntime } from '../lib/project/types';
 import { GalleryScreen } from '../features/gallery/GalleryScreen';
 import { EditorScreen } from '../features/editor/EditorScreen';
+import { getTheme } from '../ui/theme';
 
 export function AppRoot(): React.ReactElement {
   const [activeProject, setActiveProject] = useState<ProjectRuntime | null>(
     null,
   );
   const [refreshKey, setRefreshKey] = useState(0);
+  const scheme = useColorScheme();
+  const theme = useMemo(() => getTheme(scheme), [scheme]);
 
   const handleExit = () => {
     setActiveProject(null);
@@ -18,20 +21,29 @@ export function AppRoot(): React.ReactElement {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
+      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
       {activeProject ? (
-        <EditorScreen project={activeProject} onExit={handleExit} />
+        <EditorScreen
+          project={activeProject}
+          onExit={handleExit}
+          theme={theme}
+        />
       ) : (
-        <GalleryScreen onOpen={setActiveProject} refreshKey={refreshKey} />
+        <GalleryScreen
+          onOpen={setActiveProject}
+          refreshKey={refreshKey}
+          theme={theme}
+        />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f5ef',
   },
 });

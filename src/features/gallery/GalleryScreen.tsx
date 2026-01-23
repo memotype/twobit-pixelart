@@ -3,7 +3,6 @@ import {
   Alert,
   FlatList,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 
 import type { ProjectRuntime, ProjectSummary } from '../../lib/project/types';
+import type { Theme } from '../../ui/theme';
 import { createNewProject } from '../../lib/project/createProject';
 import {
   deleteProject,
@@ -22,6 +22,7 @@ import {
 interface GalleryScreenProps {
   onOpen: (project: ProjectRuntime) => void;
   refreshKey: number;
+  theme: Theme;
 }
 
 function clampInt(value: string, fallback: number): number {
@@ -35,6 +36,7 @@ function clampInt(value: string, fallback: number): number {
 export function GalleryScreen({
   onOpen,
   refreshKey,
+  theme,
 }: GalleryScreenProps): React.ReactElement {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -88,48 +90,104 @@ export function GalleryScreen({
   }, [refresh]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View
+      style={[
+        styles.safeArea,
+        { backgroundColor: theme.colors.background },
+      ]}
+    >
       <View style={styles.header}>
-        <Text style={styles.title}>Pixel Forge</Text>
-        <Text style={styles.subtitle}>Offline pixel art editor</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>
+          Pixel Forge
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
+          Offline pixel art editor
+        </Text>
       </View>
-      <View style={styles.newProjectCard}>
-        <Text style={styles.sectionTitle}>New Project</Text>
+      <View
+        style={[
+          styles.newProjectCard,
+          { backgroundColor: theme.colors.card },
+        ]}
+      >
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+          New Project
+        </Text>
         <View style={styles.row}>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.background,
+                color: theme.colors.text,
+              },
+            ]}
             placeholder="Name"
+            placeholderTextColor={theme.colors.textMuted}
             value={name}
             onChangeText={setName}
           />
         </View>
         <View style={styles.row}>
           <View style={styles.field}>
-            <Text style={styles.label}>Width</Text>
+            <Text style={[styles.label, { color: theme.colors.textMuted }]}>
+              Width
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.background,
+                  color: theme.colors.text,
+                },
+              ]}
               keyboardType="number-pad"
+              placeholderTextColor={theme.colors.textMuted}
               value={width}
               onChangeText={setWidth}
             />
           </View>
           <View style={styles.field}>
-            <Text style={styles.label}>Height</Text>
+            <Text style={[styles.label, { color: theme.colors.textMuted }]}>
+              Height
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.background,
+                  color: theme.colors.text,
+                },
+              ]}
               keyboardType="number-pad"
+              placeholderTextColor={theme.colors.textMuted}
               value={height}
               onChangeText={setHeight}
             />
           </View>
         </View>
-        <Pressable style={styles.primaryButton} onPress={handleCreate}>
-          <Text style={styles.primaryButtonText}>Create</Text>
+        <Pressable
+          style={[
+            styles.primaryButton,
+            { backgroundColor: theme.colors.primary },
+          ]}
+          onPress={handleCreate}
+        >
+          <Text
+            style={[
+              styles.primaryButtonText,
+              { color: theme.colors.primaryText },
+            ]}
+          >
+            Create
+          </Text>
         </Pressable>
       </View>
       <View style={styles.listHeader}>
-        <Text style={styles.sectionTitle}>Projects</Text>
-        <Text style={styles.listMeta}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+          Projects
+        </Text>
+        <Text style={[styles.listMeta, { color: theme.colors.textMuted }]}>
           {loading ? 'Loading...' : `${projects.length} items`}
         </Text>
       </View>
@@ -138,34 +196,45 @@ export function GalleryScreen({
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <View style={styles.projectCard}>
+          <View
+            style={[styles.projectCard, { backgroundColor: theme.colors.card }]}
+          >
             <Pressable
               style={styles.projectInfo}
               onPress={() => void handleOpen(item.id)}
             >
-              <Text style={styles.projectName}>{item.name}</Text>
-              <Text style={styles.projectMeta}>
+              <Text style={[styles.projectName, { color: theme.colors.text }]}>
+                {item.name}
+              </Text>
+              <Text
+                style={[styles.projectMeta, { color: theme.colors.textMuted }]}
+              >
                 {item.width}x{item.height}
               </Text>
-              <Text style={styles.projectMeta}>{item.updatedAt}</Text>
+              <Text
+                style={[styles.projectMeta, { color: theme.colors.textMuted }]}
+              >
+                {item.updatedAt}
+              </Text>
             </Pressable>
             <Pressable
               style={styles.deleteButton}
               onPress={() => void handleDelete(item.id, item.name)}
             >
-              <Text style={styles.deleteText}>Delete</Text>
+              <Text style={[styles.deleteText, { color: theme.colors.danger }]}>
+                Delete
+              </Text>
             </Pressable>
           </View>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f6f5ef',
   },
   header: {
     padding: 24,
@@ -185,7 +254,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#ffffff',
     shadowColor: '#000000',
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -210,16 +278,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   input: {
-    backgroundColor: '#f4f4f4',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#1f1f1f',
   },
   primaryButton: {
     marginTop: 16,
-    backgroundColor: '#111827',
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
@@ -238,7 +303,6 @@ const styles = StyleSheet.create({
   },
   listMeta: {
     fontSize: 12,
-    color: '#6b6b6b',
   },
   list: {
     paddingHorizontal: 24,
@@ -246,7 +310,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   projectCard: {
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -264,15 +327,12 @@ const styles = StyleSheet.create({
   projectName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f1f1f',
   },
   projectMeta: {
     fontSize: 12,
-    color: '#6b6b6b',
     marginTop: 2,
   },
   deleteText: {
-    color: '#c2410c',
     fontSize: 12,
     fontWeight: '600',
   },

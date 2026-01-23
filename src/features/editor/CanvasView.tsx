@@ -4,12 +4,14 @@ import Svg, { Rect } from 'react-native-svg';
 
 import type { ProjectRuntime } from '../../lib/project/types';
 import { buildRenderRects } from '../../lib/render/pixelRects';
+import type { Theme } from '../../ui/theme';
 
 interface CanvasViewProps {
   project: ProjectRuntime;
   onStrokeStart: (index: number) => void;
   onStrokeMove: (index: number) => void;
   onStrokeEnd: () => void;
+  theme: Theme;
 }
 
 interface LayoutSize {
@@ -22,6 +24,7 @@ export function CanvasView({
   onStrokeStart,
   onStrokeMove,
   onStrokeEnd,
+  theme,
 }: CanvasViewProps): React.ReactElement {
   const [layout, setLayout] = useState<LayoutSize>({ width: 0, height: 0 });
   const rects = useMemo(() => buildRenderRects(project), [project]);
@@ -57,14 +60,23 @@ export function CanvasView({
   };
 
   return (
-    <View style={styles.container} onLayout={handleLayout}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.background,
+          borderColor: theme.colors.border,
+        },
+      ]}
+      onLayout={handleLayout}
+    >
       <View
         style={[
           styles.canvas,
           {
             width: viewWidth,
             height: viewHeight,
-            backgroundColor: project.canvas.background || '#ffffff',
+            backgroundColor: project.canvas.background || theme.colors.canvas,
           },
         ]}
         onStartShouldSetResponder={() => true}
@@ -111,10 +123,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fafafa',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e5e5e5',
     overflow: 'hidden',
   },
   canvas: {

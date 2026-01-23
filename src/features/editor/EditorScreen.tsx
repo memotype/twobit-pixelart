@@ -8,7 +8,6 @@ import React, {
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,10 +26,12 @@ import { PalettePicker } from './PalettePicker';
 import { ToolBar, type ToolType } from './ToolBar';
 import { addPatch, applyPatch, createUndoState } from './undo';
 import { useAutosave } from './useAutosave';
+import type { Theme } from '../../ui/theme';
 
 interface EditorScreenProps {
   project: ProjectRuntime;
   onExit: () => void;
+  theme: Theme;
 }
 
 interface StrokeState {
@@ -46,6 +47,7 @@ const UNDO_LIMIT = 100;
 export function EditorScreen({
   project,
   onExit,
+  theme,
 }: EditorScreenProps): React.ReactElement {
   const [tool, setTool] = useState<ToolType>('pencil');
   const [selectedIndex, setSelectedIndex] = useState(1);
@@ -219,27 +221,55 @@ export function EditorScreen({
   }, [autosave.status]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View
+      style={[
+        styles.safeArea,
+        { backgroundColor: theme.colors.background },
+      ]}
+    >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>{project.name}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>
+              {project.name}
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
               {project.canvas.width}x{project.canvas.height}
             </Text>
           </View>
-          <Pressable style={styles.exitButton} onPress={saveBeforeExit}>
-            <Text style={styles.exitText}>Gallery</Text>
+          <Pressable
+            style={[
+              styles.exitButton,
+              { backgroundColor: theme.colors.primary },
+            ]}
+            onPress={saveBeforeExit}
+          >
+            <Text
+              style={[
+                styles.exitText,
+                { color: theme.colors.primaryText },
+              ]}
+            >
+              Gallery
+            </Text>
           </Pressable>
         </View>
-        <View style={styles.canvasCard}>
+        <View
+          style={[
+            styles.canvasCard,
+            { backgroundColor: theme.colors.card },
+          ]}
+        >
           <CanvasView
             project={renderProject}
             onStrokeStart={handleStrokeStart}
             onStrokeMove={handleStrokeMove}
             onStrokeEnd={handleStrokeEnd}
+            theme={theme}
           />
-          <Text style={styles.statusText}>{autosaveText}</Text>
+          <Text style={[styles.statusText, { color: theme.colors.textMuted }]}>
+            {autosaveText}
+          </Text>
         </View>
         <ToolBar
           tool={tool}
@@ -248,25 +278,57 @@ export function EditorScreen({
           onRedo={handleRedo}
           canUndo={undoState.undo.length > 0}
           canRedo={undoState.redo.length > 0}
+          theme={theme}
         />
         <PalettePicker
           colors={project.palette.colors}
           selectedIndex={selectedIndex}
           onSelect={setSelectedIndex}
+          theme={theme}
         />
-        <View style={styles.exportCard}>
-          <Text style={styles.sectionTitle}>Export</Text>
-          <Pressable style={styles.exportButton} onPress={handleExportSvg}>
-            <Text style={styles.exportText}>Export SVG</Text>
+        <View
+          style={[
+            styles.exportCard,
+            { backgroundColor: theme.colors.card },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Export
+          </Text>
+          <Pressable
+            style={[
+              styles.exportButton,
+              { backgroundColor: theme.colors.primary },
+            ]}
+            onPress={handleExportSvg}
+          >
+            <Text
+              style={[
+                styles.exportText,
+                { color: theme.colors.primaryText },
+              ]}
+            >
+              Export SVG
+            </Text>
           </Pressable>
           <View style={styles.exportRow}>
             {[1, 2, 4, 8].map((scale) => (
               <Pressable
                 key={`${scale}x`}
-                style={styles.exportButton}
+                style={[
+                  styles.exportButton,
+                  { backgroundColor: theme.colors.primary },
+                ]}
                 onPress={() => void handleExportPng(scale as PngScale)}
               >
-                <Text style={styles.exportText}>PNG {scale}x</Text>
+                <Text
+                  style={[
+                    styles.exportText,
+                    { color: theme.colors.primaryText },
+                  ]}
+                >
+                  PNG {scale}x
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -284,17 +346,18 @@ export function EditorScreen({
             );
           }}
         >
-          <Text style={styles.deleteText}>Exit without saving</Text>
+          <Text style={[styles.deleteText, { color: theme.colors.danger }]}>
+            Exit without saving
+          </Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f6f5ef',
   },
   scrollContent: {
     padding: 20,
@@ -308,17 +371,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1f1f1f',
   },
   subtitle: {
     fontSize: 12,
-    color: '#6b6b6b',
     marginTop: 4,
   },
   exitButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#111827',
     borderRadius: 8,
   },
   exitText: {
@@ -327,7 +387,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   canvasCard: {
-    backgroundColor: '#ffffff',
     padding: 12,
     borderRadius: 16,
     gap: 8,
@@ -338,16 +397,13 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    color: '#6b6b6b',
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f1f1f',
     marginBottom: 8,
   },
   exportCard: {
-    backgroundColor: '#ffffff',
     padding: 12,
     borderRadius: 16,
     gap: 8,
@@ -357,13 +413,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   exportButton: {
-    backgroundColor: '#111827',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 8,
   },
   exportText: {
-    color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -377,7 +431,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   deleteText: {
-    color: '#b45309',
     fontSize: 12,
     fontWeight: '600',
   },

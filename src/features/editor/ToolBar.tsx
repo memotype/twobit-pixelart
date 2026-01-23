@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import type { Theme } from '../../ui/theme';
+
 export type ToolType = 'pencil' | 'eraser';
 
 interface ToolBarProps {
@@ -10,6 +12,7 @@ interface ToolBarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  theme: Theme;
 }
 
 export function ToolBar({
@@ -19,26 +22,47 @@ export function ToolBar({
   onRedo,
   canUndo,
   canRedo,
+  theme,
 }: ToolBarProps): React.ReactElement {
   return (
     <View style={styles.container}>
       <View style={styles.group}>
         <Pressable
-          style={[styles.toolButton, tool === 'pencil' && styles.active]}
+          style={[
+            styles.toolButton,
+            { backgroundColor: theme.colors.card },
+            tool === 'pencil' && styles.active,
+            tool === 'pencil' && { backgroundColor: theme.colors.primary },
+          ]}
           onPress={() => onSelect('pencil')}
         >
           <Text
-            style={[styles.toolText, tool === 'pencil' && styles.toolTextDark]}
+            style={[
+              styles.toolText,
+              { color: theme.colors.text },
+              tool === 'pencil' && styles.toolTextDark,
+              tool === 'pencil' && { color: theme.colors.primaryText },
+            ]}
           >
             Pencil
           </Text>
         </Pressable>
         <Pressable
-          style={[styles.toolButton, tool === 'eraser' && styles.active]}
+          style={[
+            styles.toolButton,
+            { backgroundColor: theme.colors.card },
+            tool === 'eraser' && styles.active,
+            tool === 'eraser' && { backgroundColor: theme.colors.primary },
+          ]}
           onPress={() => onSelect('eraser')}
         >
           <Text
-            style={[styles.toolText, tool === 'eraser' && styles.toolTextDark]}
+            style={[
+              styles.toolText,
+              { color: theme.colors.text },
+              tool === 'eraser' && styles.toolTextDark,
+              tool === 'eraser' && { color: theme.colors.primaryText },
+            ]}
           >
             Eraser
           </Text>
@@ -46,18 +70,40 @@ export function ToolBar({
       </View>
       <View style={styles.group}>
         <Pressable
-          style={[styles.actionButton, !canUndo && styles.disabled]}
+          style={[
+            styles.actionButton,
+            { backgroundColor: theme.colors.primary },
+            !canUndo && styles.disabled,
+          ]}
           onPress={onUndo}
           disabled={!canUndo}
         >
-          <Text style={styles.toolTextDark}>Undo</Text>
+          <Text
+            style={[
+              styles.toolTextDark,
+              { color: theme.colors.primaryText },
+            ]}
+          >
+            Undo
+          </Text>
         </Pressable>
         <Pressable
-          style={[styles.actionButton, !canRedo && styles.disabled]}
+          style={[
+            styles.actionButton,
+            { backgroundColor: theme.colors.primary },
+            !canRedo && styles.disabled,
+          ]}
           onPress={onRedo}
           disabled={!canRedo}
         >
-          <Text style={styles.toolTextDark}>Redo</Text>
+          <Text
+            style={[
+              styles.toolTextDark,
+              { color: theme.colors.primaryText },
+            ]}
+          >
+            Redo
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -77,26 +123,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: '#f4f4f4',
   },
   actionButton: {
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: '#111827',
   },
   toolText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#111827',
   },
   toolTextDark: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#ffffff',
   },
   active: {
-    backgroundColor: '#111827',
   },
   disabled: {
     opacity: 0.5,
