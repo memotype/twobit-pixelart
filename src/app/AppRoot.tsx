@@ -1,5 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { SafeAreaView, StyleSheet, useColorScheme } from 'react-native';
+import {
+  Platform,
+  SafeAreaView,
+  StatusBar as RNStatusBar,
+  StyleSheet,
+  useColorScheme,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
 import type { ProjectRuntime } from '../lib/project/types';
@@ -14,6 +20,12 @@ export function AppRoot(): React.ReactElement {
   const [refreshKey, setRefreshKey] = useState(0);
   const scheme = useColorScheme();
   const theme = useMemo(() => getTheme(scheme), [scheme]);
+  const topInset = useMemo(() => {
+    if (Platform.OS === 'android') {
+      return RNStatusBar.currentHeight ?? 0;
+    }
+    return 0;
+  }, []);
 
   const handleExit = () => {
     setActiveProject(null);
@@ -22,20 +34,29 @@ export function AppRoot(): React.ReactElement {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={[
+        styles.container,
+        { backgroundColor: theme.colors.background },
+      ]}
     >
-      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar
+        style={theme.scheme === 'dark' ? 'light' : 'dark'}
+        backgroundColor={theme.colors.background}
+        translucent={false}
+      />
       {activeProject ? (
         <EditorScreen
           project={activeProject}
           onExit={handleExit}
           theme={theme}
+          topInset={topInset}
         />
       ) : (
         <GalleryScreen
           onOpen={setActiveProject}
           refreshKey={refreshKey}
           theme={theme}
+          topInset={topInset}
         />
       )}
     </SafeAreaView>

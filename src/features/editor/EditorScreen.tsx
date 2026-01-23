@@ -32,6 +32,7 @@ interface EditorScreenProps {
   project: ProjectRuntime;
   onExit: () => void;
   theme: Theme;
+  topInset: number;
 }
 
 interface StrokeState {
@@ -48,6 +49,7 @@ export function EditorScreen({
   project,
   onExit,
   theme,
+  topInset,
 }: EditorScreenProps): React.ReactElement {
   const [tool, setTool] = useState<ToolType>('pencil');
   const [selectedIndex, setSelectedIndex] = useState(1);
@@ -224,7 +226,10 @@ export function EditorScreen({
     <View
       style={[
         styles.safeArea,
-        { backgroundColor: theme.colors.background },
+        {
+          backgroundColor: theme.colors.background,
+          paddingTop: topInset,
+        },
       ]}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
