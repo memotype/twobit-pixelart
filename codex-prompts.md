@@ -59,7 +59,7 @@ project. Follow `CODEX.md` and `REPO.md` rules.
 
 Target template: default to local `../app-template/`. The whitelist source is
 the `scripts/sync-template.ps1` file from the chosen template ref. When using
-local, use whatever is currently checked out there and do not ask for a ref.
+local, treat it as read-only and use whatever is currently checked out there.
 
 - local: `../app-template/` (default; use whatever is currently checked out)
 - remote: `git@github.com:memotype/twobit-app-template.git`
@@ -72,6 +72,8 @@ Rules:
   sync using the whitelist and sync script.
 - Use the dedicated sync script at `scripts/sync-template.ps1` from the
   chosen template ref (it contains the authoritative whitelist).
+- If using local `../app-template`, do not run git commands there and do not
+  change its working tree or HEAD.
 - Commit with message: "Sync template `ref`"
 
 Steps:
@@ -79,8 +81,8 @@ Steps:
 1. Read `CODEX.md`, `REPO.md`, `APP.md`. Stop and report conflicts.
 2. If working tree is not clean, ask whether to commit or stash app changes.
    Do not discard anything without explicit instruction.
-3. Ensure the local template exists:
-   - If `../app-template` exists, use it as-is and do not ask for a ref.
+3. Ensure the template source exists:
+   - If `../app-template` exists, use it as-is (read-only).
    - If it does not exist, use remote `main` by default.
 4. Run:
    - local: `powershell -File scripts/sync-template.ps1`
