@@ -55,11 +55,13 @@ export function EditorScreen({
   const [tool, setTool] = useState<ToolType>('pencil');
   const [selectedIndex, setSelectedIndex] = useState(1);
   const [undoState, setUndoState] = useState(createUndoState());
+  const [isDirty, setIsDirty] = useState(false);
   const [pixels, setPixels] = useState<Uint32Array>(
     () => new Uint32Array(project.pixels),
   );
   const strokeRef = useRef<StrokeState | null>(null);
   const pixelsRef = useRef<Uint32Array>(pixels);
+  const promptOpenRef = useRef(false);
 
   useEffect(() => {
     pixelsRef.current = pixels;
@@ -79,6 +81,7 @@ export function EditorScreen({
 
   const autosave = useAutosave(async () => {
     await saveProject(renderProject);
+    setIsDirty(false);
   }, AUTOSAVE_DELAY_MS);
 
   const applyPixel = useCallback(
@@ -143,6 +146,7 @@ export function EditorScreen({
       return;
     }
     setUndoState((state) => addPatch(state, stroke, UNDO_LIMIT));
+    setIsDirty(true);
     autosave.markDirty();
   }, [autosave]);
 
@@ -163,6 +167,7 @@ export function EditorScreen({
         redo: [...state.redo, patch],
       };
     });
+    setIsDirty(true);
     autosave.markDirty();
   }, [autosave]);
 
@@ -183,11 +188,13 @@ export function EditorScreen({
         redo: state.redo.slice(0, -1),
       };
     });
+    setIsDirty(true);
     autosave.markDirty();
   }, [autosave]);
 
   const saveBeforeExit = useCallback(async () => {
     await saveProject(renderProject);
+    setIsDirty(false);
     onExit();
   }, [onExit, renderProject]);
 
@@ -225,11 +232,35 @@ export function EditorScreen({
 
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      onExit();
+      if (!isDirty) {
+        onExit();
+        return true;
+      }
+      if (promptOpenRef.current) {
+        return true;
+      }
+      promptOpenRef.current = true;
+      Alert.alert('Unsaved changes', undefined, [
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => {
+            promptOpenRef.current = false;
+            onExit();
+          },
+        },
+        {
+          text: 'Save',
+          onPress: () => {
+            promptOpenRef.current = false;
+            void saveBeforeExit();
+          },
+        },
+      ]);
       return true;
     });
     return () => handler.remove();
-  }, [onExit]);
+  }, [isDirty, onExit, saveBeforeExit]);
 
   return (
     <View
