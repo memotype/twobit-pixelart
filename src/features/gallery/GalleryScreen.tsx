@@ -42,7 +42,7 @@ export function GalleryScreen({
 }: GalleryScreenProps): React.ReactElement {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState('New Project');
+  const [name, setName] = useState('');
   const [width, setWidth] = useState('32');
   const [height, setHeight] = useState('32');
 
@@ -122,12 +122,13 @@ export function GalleryScreen({
           <TextInput
             style={[
               styles.input,
+              styles.nameInput,
               {
                 backgroundColor: theme.colors.background,
                 color: theme.colors.text,
               },
             ]}
-            placeholder="Name"
+            placeholder="New Project Title"
             placeholderTextColor={theme.colors.textMuted}
             value={name}
             onChangeText={setName}
@@ -193,7 +194,7 @@ export function GalleryScreen({
           Projects
         </Text>
         <Text style={[styles.listMeta, { color: theme.colors.textMuted }]}>
-          {loading ? 'Loading...' : `${projects.length} items`}
+          {loading ? 'Loading...' : `${projects.length} projects`}
         </Text>
       </View>
       <FlatList
@@ -288,6 +289,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
   },
+  nameInput: {
+    flex: 1,
+  },
   primaryButton: {
     marginTop: 16,
     borderRadius: 8,
@@ -307,7 +311,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   listMeta: {
-    fontSize: 12,
+    fontSize: 16,
+    fontWeight: '600',
   },
   list: {
     paddingHorizontal: 24,
