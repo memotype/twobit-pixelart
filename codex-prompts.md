@@ -91,12 +91,10 @@ Steps:
 6. If any non-whitelist file changes, stop and report.
 7. Commit with message: "Sync template ref" (use the actual ref if known,
    otherwise use "Sync template (local)").
-8. Push to main.
-
-Optional deps alignment:
-
-- Run: `powershell -File scripts/sync-deps.ps1` (if local), or
-  `powershell -File scripts/sync-deps.ps1 -TemplateRef main` (if remote)
-- Commit `package.json` + `package-lock.json` together with message
-  "Sync deps ref" (or "Sync deps (local)").
+8. Run deps alignment (required):
+   - local: `powershell -File scripts/sync-deps.ps1`
+   - remote: `powershell -File scripts/sync-deps.ps1 -TemplateRef main`
+9. Commit `package.json` + `package-lock.json` together with message
+   "Sync deps ref" (or "Sync deps (local)").
+10. Push to main.
 ```
