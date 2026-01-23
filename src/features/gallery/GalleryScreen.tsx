@@ -20,7 +20,7 @@ import {
 } from '../../lib/storage/projectStorage';
 
 interface GalleryScreenProps {
-  onOpen: (project: ProjectRuntime) => void;
+  onOpen: (project: ProjectRuntime, isNew: boolean) => void;
   refreshKey: number;
   theme: Theme;
   topInset: number;
@@ -66,13 +66,13 @@ export function GalleryScreen({
     const project = createNewProject(name.trim() || 'Untitled', nextWidth,
       nextHeight);
     await saveProject(project);
-    onOpen(project);
+    onOpen(project, true);
   }, [height, name, onOpen, width]);
 
   const handleOpen = useCallback(
     async (id: string) => {
       const project = await loadProject(id);
-      onOpen(project);
+      onOpen(project, false);
     },
     [onOpen],
   );

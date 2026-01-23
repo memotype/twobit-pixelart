@@ -19,7 +19,7 @@ import * as Sharing from 'expo-sharing';
 
 import type { ProjectRuntime } from '../../lib/project/types';
 import { isTransparent } from '../../lib/project/palette';
-import { saveProject } from '../../lib/storage/projectStorage';
+import { deleteProject, saveProject } from '../../lib/storage/projectStorage';
 import { exportSvg } from '../../lib/export/svgExport';
 import { exportPng, sharePng, type PngScale } from '../../lib/export/pngExport';
 import { CanvasView } from './CanvasView';
@@ -34,6 +34,7 @@ interface EditorScreenProps {
   onExit: () => void;
   theme: Theme;
   topInset: number;
+  isNewProject: boolean;
 }
 
 interface StrokeState {
@@ -51,11 +52,13 @@ export function EditorScreen({
   onExit,
   theme,
   topInset,
+  isNewProject,
 }: EditorScreenProps): React.ReactElement {
   const [tool, setTool] = useState<ToolType>('pencil');
   const [selectedIndex, setSelectedIndex] = useState(1);
   const [undoState, setUndoState] = useState(createUndoState());
   const [isDirty, setIsDirty] = useState(false);
+  const [isNew, setIsNew] = useState(isNewProject);
   const [pixels, setPixels] = useState<Uint32Array>(
     () => new Uint32Array(project.pixels),
   );
@@ -82,6 +85,7 @@ export function EditorScreen({
   const autosave = useAutosave(async () => {
     await saveProject(renderProject);
     setIsDirty(false);
+    setIsNew(false);
   }, AUTOSAVE_DELAY_MS);
 
   const applyPixel = useCallback(
@@ -195,8 +199,16 @@ export function EditorScreen({
   const saveBeforeExit = useCallback(async () => {
     await saveProject(renderProject);
     setIsDirty(false);
+    setIsNew(false);
     onExit();
   }, [onExit, renderProject]);
+
+  const discardAndExit = useCallback(async () => {
+    if (isNew) {
+      await deleteProject(renderProject.id);
+    }
+    onExit();
+  }, [isNew, onExit, renderProject.id]);
 
   const handleExportSvg = useCallback(async () => {
     const svg = exportSvg(renderProject);
@@ -232,7 +244,7 @@ export function EditorScreen({
 
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!isDirty) {
+      if (!isDirty && !isNew) {
         onExit();
         return true;
       }
@@ -246,7 +258,7 @@ export function EditorScreen({
           style: 'destructive',
           onPress: () => {
             promptOpenRef.current = false;
-            onExit();
+            void discardAndExit();
           },
         },
         {
@@ -260,7 +272,7 @@ export function EditorScreen({
       return true;
     });
     return () => handler.remove();
-  }, [isDirty, onExit, saveBeforeExit]);
+  }, [discardAndExit, isDirty, isNew, onExit, saveBeforeExit]);
 
   return (
     <View
@@ -386,7 +398,13 @@ export function EditorScreen({
               'This will leave without saving new changes.',
               [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Leave', style: 'destructive', onPress: onExit },
+                {
+                  text: 'Leave',
+                  style: 'destructive',
+                  onPress: () => {
+                    void discardAndExit();
+                  },
+                },
               ],
             );
           }}

@@ -17,6 +17,7 @@ export function AppRoot(): React.ReactElement {
   const [activeProject, setActiveProject] = useState<ProjectRuntime | null>(
     null,
   );
+  const [isNewProject, setIsNewProject] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const scheme = useColorScheme();
   const theme = useMemo(() => getTheme(scheme), [scheme]);
@@ -29,7 +30,13 @@ export function AppRoot(): React.ReactElement {
 
   const handleExit = () => {
     setActiveProject(null);
+    setIsNewProject(false);
     setRefreshKey((prev) => prev + 1);
+  };
+
+  const handleOpen = (project: ProjectRuntime, isNew: boolean) => {
+    setActiveProject(project);
+    setIsNewProject(isNew);
   };
 
   return (
@@ -50,10 +57,11 @@ export function AppRoot(): React.ReactElement {
           onExit={handleExit}
           theme={theme}
           topInset={topInset}
+          isNewProject={isNewProject}
         />
       ) : (
         <GalleryScreen
-          onOpen={setActiveProject}
+          onOpen={handleOpen}
           refreshKey={refreshKey}
           theme={theme}
           topInset={topInset}
