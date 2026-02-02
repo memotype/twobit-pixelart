@@ -118,13 +118,16 @@ Rules:
       - chat code blocks
     - `CODEX.md` and `REPO.md` are read-only for Codex. Line-length lint is
       warning-only for those two files.
-    - All other files must treat line-length lint as errors. If a line in a file
-      cannot accommodate an 80-character line limit due to code breakage or
-      formatting sanity -- if possible -- insert a comment to disable linter
-      checks for that line. If no other options exist to resolve or disable
-      linter checks for line length, note it in `ISSUES.md` and mark it "low"
-      and note that it is a known issue. Markdownlint doesn't support per-line
-      disables, the per-line rule doesn't apply to Markdown files.
+  - All other files must treat line-length lint as errors. If a line in a file
+    cannot accommodate an 80-character line limit due to code breakage or
+    formatting sanity -- if possible -- insert a comment to disable linter
+    checks for that line. If no other options exist to resolve or disable
+    linter checks for line length, note it in `ISSUES.md` and mark it "low"
+    and note that it is a known issue. Markdownlint doesn't support per-line
+    disables, the per-line rule doesn't apply to Markdown files.
+  - Exceptions:
+    - `package-lock.json` is exempt from the 80-character rule.
+    - `package.json` may exceed 80 characters for script command values.
   - Formatting rules exist to preserve clean diffs and predictable tooling
     behavior, not for stylistic preference.
   - All code and structured data files should pass widely-used, stable linters
@@ -226,7 +229,9 @@ response to an overlong line is usually to introduce structure, not to compress
 syntax.
 
 This rule applies uniformly to imports, expressions, strings, JSX/TSX, and
-configuration files.
+configuration files, with these exceptions:
+- `package-lock.json` is exempt from the 80-character rule.
+- `package.json` may exceed 80 characters for script command values.
 
 ### Source File Extensions and Module Conventions
 
