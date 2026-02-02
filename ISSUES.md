@@ -20,3 +20,18 @@
      but `package.json` has 54.0.32.
    - Resolution: align `expo` to ~54.0.33 (likely via `npm install`) and rerun
      `npm run doctor`.
+
+2. [medium] Restored working copies are not treated as dirty
+   - When a working copy is restored, `EditorScreenV2` starts with
+     `isDirty = false`, so back-button exit skips the Save/Discard prompt even
+     though the working copy represents unsaved changes vs the canonical file.
+   - This conflicts with APP.md "isDirty: editor state differs from the last
+     explicit Save (canonical baseline)" and the back-button pseudocode.
+   - Resolution: set dirty state when opening a working copy or compare current
+     state to the last explicit Save baseline.
+
+3. [low] Line length policy violated in package metadata files
+   - `package.json` and `package-lock.json` contain many lines over 80 chars,
+     which conflicts with REPO.md's global 80-char limit policy.
+   - Resolution: decide whether to exempt lockfiles/metadata, or reformat/
+     restructure to comply (noting lockfiles are generated).
