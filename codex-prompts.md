@@ -85,8 +85,9 @@ Rules:
   sync using the whitelist and sync script.
 - Use the dedicated sync script at `scripts/sync-template.ps1` from the
   chosen template ref (it contains the authoritative whitelist).
-- If using local `../app-template`, do not run git commands there and do not
-  change its working tree or HEAD.
+- If using local `../app-template`, do not modify its working tree or HEAD.
+- Read-only git commands are allowed there to verify tags (e.g. `git tag`,
+  `git describe`, `git rev-parse`).
 - Tag-based sync only. Do not use `main` as a template ref.
 - If `template-sync.yaml` exists, use its `templateRef` unless explicitly
   overridden. Refuse to sync if `templateRef` is missing or equals `main`.
@@ -105,7 +106,9 @@ Steps:
    - local: `powershell -File scripts/sync-template.ps1`
    - remote: `powershell -File scripts/sync-template.ps1 -TemplateRef <tag>`
 5. Review git status and git diff. Only whitelist files should change.
-6. If any non-whitelist file changes, stop and report.
-7. Commit with message: "Sync template <ref>".
-8. Push to main.
+6. Expected exceptions: `package.json` and `package-lock.json` will change
+   because sync-template runs sync-deps. Treat these as required changes.
+7. If any other non-whitelist file changes, stop and report.
+8. Commit with message: "Sync template <ref>".
+9. Push to main.
 ```
