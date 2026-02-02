@@ -48,8 +48,10 @@ TEMPLATE SYNC WHITELIST (core):
 - scripts/sync-template.ps1
 - scripts/publish-pages.ps1
 - .vscode/settings.json
+- .gitattributes
 - privacy_template.md
 - codex-prompts.md
+- template-sync.yaml
 
 Explicit non-sync (project-owned; never overwritten by sync):
 - APP.md, README.md, SCRATCH.md, ISSUES.md
@@ -188,6 +190,8 @@ Template release sanity check:
 
 - Before tagging a template release, run `npm run start:clear` and ensure it
   starts cleanly.
+- Before tagging a template release, update `package.json` version to match
+  the tag (without the leading `v`).
 
 ### Use of npx
 

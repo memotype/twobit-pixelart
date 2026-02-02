@@ -18,6 +18,15 @@ function Invoke-Git {
   }
 }
 
+function Write-AsciiLf {
+  param(
+    [string]$path,
+    [string]$content
+  )
+  $normalized = $content -replace "`r`n", "`n"
+  [IO.File]::WriteAllText($path, $normalized, [Text.Encoding]::ASCII)
+}
+
 $target_path = if ($TargetPath) { $TargetPath } else { Get-Location }
 if (-not (Test-Path $target_path)) {
   New-Item -ItemType Directory -Path $target_path | Out-Null
@@ -104,9 +113,8 @@ if (-not $Name -or $Name.Trim().Length -eq 0) {
 
 $package_json = Get-Content $package_path -Raw | ConvertFrom-Json
 $package_json.name = $Name.Trim()
-$package_json |
-  ConvertTo-Json -Depth 10 |
-  Set-Content -Encoding ascii $package_path
+$package_content = $package_json | ConvertTo-Json -Depth 10
+Write-AsciiLf $package_path $package_content
 
 Write-Host "Updated package.json name to '$($package_json.name)'."
 
@@ -121,9 +129,8 @@ if (Test-Path $app_json_path) {
 
     $app_json.expo.name = $safe_name
     $app_json.expo.slug = $slug
-    $app_json |
-      ConvertTo-Json -Depth 10 |
-      Set-Content -Encoding ascii $app_json_path
+    $app_content = $app_json | ConvertTo-Json -Depth 10
+    Write-AsciiLf $app_json_path $app_content
 
     Write-Host "Updated app.json name to '$safe_name'."
     Write-Host "Updated app.json slug to '$slug'."

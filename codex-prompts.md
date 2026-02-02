@@ -5,15 +5,27 @@
 ## NEW CODEX SESSION
 
 ```markdown
-Read `CODEX.md` and all referenced files, if available, including:
-- `README.md`
+DO NOT edit any file, *yet*.
+
+BEFORE reading any files:
+- Run a PowerShell command to enumerate the file paths of this current working
+  directory for your own, internal reasoning in this session.
+  - Exclude:
+    - `.git`
+    - `.vscode`
+    - `node_modules`
+
+NOW, read:
+- `CODEX.md`
 - `REPO.md`
 - `APP.md`
-- `SCRATCH.md`
-- `ISSUES.md`
+- Files that may currently be empty or non-existant:
+  - `README.md`
+  - `SCRATCH.md`
+  - `ISSUES.md`
 
-Don't edit any file yet, just report whether or not you understand and summarize
-your understanding of the instruction.
+Report whether or not you understand the instuctions and summarize your
+understanding of the instructions.
 ```
 
 ---
@@ -59,7 +71,8 @@ project. Follow `CODEX.md` and `REPO.md` rules.
 
 Target template: default to local `../app-template/`. The whitelist source is
 the `scripts/sync-template.ps1` file from the chosen template ref. When using
-local, treat it as read-only and use whatever is currently checked out there.
+local, treat it as read-only and require it to be checked out at the latest
+tag.
 
 - local: `../app-template/` (default; use whatever is currently checked out)
 - remote: `git@github.com:memotype/twobit-app-template.git`
@@ -74,6 +87,9 @@ Rules:
   chosen template ref (it contains the authoritative whitelist).
 - If using local `../app-template`, do not run git commands there and do not
   change its working tree or HEAD.
+- Tag-based sync only. Do not use `main` as a template ref.
+- If `template-sync.yaml` exists, use its `templateRef` unless explicitly
+  overridden. Refuse to sync if `templateRef` is missing or equals `main`.
 - Commit with message: "Sync template `ref`"
 
 Steps:
@@ -82,19 +98,14 @@ Steps:
 2. If working tree is not clean, ask whether to commit or stash app changes.
    Do not discard anything without explicit instruction.
 3. Ensure the template source exists:
-   - If `../app-template` exists, use it as-is (read-only).
-   - If it does not exist, use remote `main` by default.
+   - If `../app-template` exists, use it as-is (read-only) and ensure it is
+     on the latest tag.
+   - If it does not exist, use the remote tag from `template-sync.yaml`.
 4. Run:
    - local: `powershell -File scripts/sync-template.ps1`
-   - remote: `powershell -File scripts/sync-template.ps1 -TemplateRef main`
+   - remote: `powershell -File scripts/sync-template.ps1 -TemplateRef <tag>`
 5. Review git status and git diff. Only whitelist files should change.
 6. If any non-whitelist file changes, stop and report.
-7. Commit with message: "Sync template ref" (use the actual ref if known,
-   otherwise use "Sync template (local)").
-8. Run deps alignment (required):
-   - local: `powershell -File scripts/sync-deps.ps1`
-   - remote: `powershell -File scripts/sync-deps.ps1 -TemplateRef main`
-9. Commit `package.json` + `package-lock.json` together with message
-   "Sync deps ref" (or "Sync deps (local)").
-10. Push to main.
+7. Commit with message: "Sync template <ref>".
+8. Push to main.
 ```

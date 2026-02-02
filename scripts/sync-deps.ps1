@@ -23,6 +23,15 @@ function Invoke-Git {
   }
 }
 
+function Write-AsciiLf {
+  param(
+    [string]$path,
+    [string]$content
+  )
+  $normalized = $content -replace "`r`n", "`n"
+  [IO.File]::WriteAllText($path, $normalized, [Text.Encoding]::ASCII)
+}
+
 function Ensure-CleanRepo {
   param([string]$repo_root)
   if ($Force) {
@@ -140,9 +149,8 @@ try {
     $target_json.engines = $template_json.engines
   }
 
-  $target_json |
-    ConvertTo-Json -Depth 10 |
-    Set-Content -Encoding ascii $target_pkg
+  $target_content = $target_json | ConvertTo-Json -Depth 10
+  Write-AsciiLf $target_pkg $target_content
 
   Write-Host 'Dependency sync complete.'
   Write-Host "Added: $($added.Count), updated: $($updated.Count)."
