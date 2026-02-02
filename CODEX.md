@@ -147,6 +147,53 @@
   2) explain which module owns the feature, and
   3) confirm `App.tsx` remains composition-only.
 
+### 4.3) Spirit of the rules (mandatory)
+
+- Follow the *intent* of constraints, not just their literal wording.
+  - The "you know what I meant" rule applies, always.
+- Do not relocate complexity or rename files to “pass” constraints.
+- If a rule is unclear, explain the intent you’re following and why.
+
+### 4.4) Root-file composition rule (MANDATORY)
+
+`App.tsx` is the root entrypoint and MUST remain composition-only.
+
+Codex MUST NOT evade this rule by moving feature logic into a differently
+named root file (for example: `AppRoot.tsx`, `Root.tsx`, `Main.tsx`,
+`AppShell.tsx`, or similar) and then having `App.tsx` merely import it.
+
+Forbidden patterns (non-exhaustive):
+
+- `App.tsx` imports a single "real app" component from `AppRoot.tsx`
+  (or similarly named file) and renders it.
+- A new root-like file is introduced whose purpose is to hold feature logic
+  that was prohibited from living in `App.tsx`.
+- Large refactors that only rename/move `App.tsx` logic without modularizing it.
+
+Required behavior:
+
+- If `App.tsx` is growing beyond the composition-only constraints, Codex MUST
+  refactor by extracting features into modules under `src/` (per `REPO.md`),
+  then import and compose those modules from `App.tsx`.
+
+If Codex is unsure whether a change violates this rule, STOP and ask.
+
+### 4.5) Root-like file detection rule (MANDATORY)
+
+Any new file that acts as an alternate app root must be treated as equivalent
+to `App.tsx` for governance purposes.
+
+A file is "root-like" if it contains two or more of the following:
+
+- top-level providers (theme, navigation, gesture, safe area, etc.)
+- global app state initialization
+- routing/navigation setup
+- app-wide layout shell
+- many feature imports across unrelated domains
+
+If a proposed change would introduce a root-like file outside `App.tsx`,
+Codex MUST STOP and refactor into feature modules instead.
+
 ## 5) Accidental Editor and/or Command Input
 
 If the user sends a message that appears to be

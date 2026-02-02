@@ -1,19 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import {
   Platform,
-  SafeAreaView,
   StatusBar as RNStatusBar,
   StyleSheet,
   useColorScheme,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import type { ProjectRuntime } from '../lib/project/types';
 import { GalleryScreen } from '../features/gallery/GalleryScreen';
-import { EditorScreen } from '../features/editor/EditorScreen';
+import { EditorScreenV2 } from '../features/editor/EditorScreenV2';
 import { getTheme } from '../ui/theme';
 
-export function AppRoot(): React.ReactElement {
+function AppShell(): React.ReactElement {
   const [activeProject, setActiveProject] = useState<ProjectRuntime | null>(
     null,
   );
@@ -21,12 +25,13 @@ export function AppRoot(): React.ReactElement {
   const [refreshKey, setRefreshKey] = useState(0);
   const scheme = useColorScheme();
   const theme = useMemo(() => getTheme(scheme), [scheme]);
+  const insets = useSafeAreaInsets();
   const topInset = useMemo(() => {
     if (Platform.OS === 'android') {
       return RNStatusBar.currentHeight ?? 0;
     }
-    return 0;
-  }, []);
+    return insets.top;
+  }, [insets.top]);
 
   const handleExit = () => {
     setActiveProject(null);
@@ -45,6 +50,7 @@ export function AppRoot(): React.ReactElement {
         styles.container,
         { backgroundColor: theme.colors.background },
       ]}
+      edges={['top', 'bottom']}
     >
       <StatusBar
         style={theme.scheme === 'dark' ? 'light' : 'dark'}
@@ -52,7 +58,7 @@ export function AppRoot(): React.ReactElement {
         translucent={false}
       />
       {activeProject ? (
-        <EditorScreen
+        <EditorScreenV2
           project={activeProject}
           onExit={handleExit}
           theme={theme}
@@ -68,6 +74,14 @@ export function AppRoot(): React.ReactElement {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+export function AppRoot(): React.ReactElement {
+  return (
+    <SafeAreaProvider>
+      <AppShell />
+    </SafeAreaProvider>
   );
 }
 

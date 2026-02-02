@@ -136,6 +136,10 @@ Rules:
     warnings about `CRLF` conversion should be ignored, and diffs that only
     contain `LF`/`CRLF` differences should also be ignored unless relevant
     to the file type.
+  - Codex MUST write files with LF line endings. If a file is encountered with
+    `CRLF`, normalize it to `LF` when editing unless the file type explicitly
+    requires `CRLF`.
+
 
 ### Package Management Policy
 
@@ -174,6 +178,16 @@ template and regenerate the lockfile.
 Example:
 
 `powershell -File scripts/sync-deps.ps1 -TemplateRef v4.19.1`
+
+Troubleshooting:
+
+- If bundling or linting errors mention `hermes-parser`, ensure it is present
+  in `devDependencies` and run `npm install` to refresh the lockfile.
+
+Template release sanity check:
+
+- Before tagging a template release, run `npm run start:clear` and ensure it
+  starts cleanly.
 
 ### Use of npx
 

@@ -5,8 +5,11 @@
                  "version":  "4.19.0",
                  "orientation":  "portrait",
                  "userInterfaceStyle":  "automatic",
-                 "assetBundlePatterns":  [
+             "assetBundlePatterns":  [
                                              "**/*"
-                                         ]
+                                         ],
+             "android":  {
+                             "versionCode":  1
+                         }
              }
 }

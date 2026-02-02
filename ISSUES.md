@@ -15,4 +15,8 @@
 
 ## Findings
 
-None.
+1. [low] Expo doctor reports Expo patch mismatch
+   - `npm run doctor` failed on 2026-02-01. Expo SDK expects `expo` ~54.0.33
+     but `package.json` has 54.0.32.
+   - Resolution: align `expo` to ~54.0.33 (likely via `npm install`) and rerun
+     `npm run doctor`.

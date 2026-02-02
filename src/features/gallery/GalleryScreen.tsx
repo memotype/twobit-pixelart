@@ -50,6 +50,9 @@ export function GalleryScreen({
   const [width, setWidth] = useState('32');
   const [height, setHeight] = useState('32');
 
+  const trimmedName = name.trim();
+  const isCreateEnabled = trimmedName.length > 0;
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -96,13 +99,19 @@ export function GalleryScreen({
   );
 
   const handleCreate = useCallback(async () => {
+    if (!isCreateEnabled) {
+      return;
+    }
     const nextWidth = clampInt(width, 32);
     const nextHeight = clampInt(height, 32);
-    const project = createNewProject(name.trim() || 'Untitled', nextWidth,
-      nextHeight);
+    const project = createNewProject(
+      trimmedName || 'Untitled',
+      nextWidth,
+      nextHeight,
+    );
     await saveProject(project);
     onOpen(project, true);
-  }, [height, name, onOpen, width]);
+  }, [height, isCreateEnabled, onOpen, trimmedName, width]);
 
   const handleOpen = useCallback(
     async (id: string) => {
@@ -209,11 +218,23 @@ export function GalleryScreen({
         <Pressable
           style={[
             styles.primaryButton,
-            { backgroundColor: '#c6c6c6' },
+            {
+              backgroundColor: theme.colors.primary ?? theme.colors.text,
+            },
+            !isCreateEnabled && styles.primaryButtonDisabled,
           ]}
+          disabled={!isCreateEnabled}
           onPress={handleCreate}
         >
-          <Text style={[styles.primaryButtonText, { color: '#000000' }]}>
+          <Text
+            style={[
+              styles.primaryButtonText,
+              {
+                color: theme.colors.primaryText ?? theme.colors.background,
+              },
+              !isCreateEnabled && styles.primaryButtonTextDisabled,
+            ]}
+          >
             Create
           </Text>
         </Pressable>
@@ -327,10 +348,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
   },
+  primaryButtonDisabled: {
+    opacity: 0.45,
+  },
   primaryButtonText: {
     color: '#ffffff',
     fontWeight: '600',
     fontSize: 14,
+  },
+  primaryButtonTextDisabled: {
+    opacity: 0.8,
   },
   listHeader: {
     marginTop: 20,
