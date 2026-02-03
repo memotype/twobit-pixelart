@@ -17,7 +17,7 @@ import {
 import * as Sharing from 'expo-sharing';
 
 import type { ProjectRuntime } from '../../lib/project/types';
-import { isTransparent } from '../../lib/project/palette';
+import { isTransparent, parseHexColor } from '../../lib/project/palette';
 import {
   deleteProject,
   deleteWorkingCopy,
@@ -51,6 +51,31 @@ const AUTOSAVE_DELAY_MS = 1200;
 const UNDO_LIMIT = 100;
 const RAIL_SIDE: 'left' | 'right' = 'right';
 
+function findOpaqueRedIndex(colors: string[]): number {
+  for (let i = 0; i < colors.length; i += 1) {
+    const color = parseHexColor(colors[i]);
+    if (
+      color.r === 255 &&
+      color.g === 59 &&
+      color.b === 48 &&
+      color.a === 255
+    ) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function findFirstOpaqueIndex(colors: string[]): number {
+  for (let i = 0; i < colors.length; i += 1) {
+    const color = parseHexColor(colors[i]);
+    if (color.a > 0) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 export function EditorScreenV2({
   project,
   onExit,
@@ -59,8 +84,15 @@ export function EditorScreenV2({
   isNewProject,
   isRestoredWorkingCopy,
 }: EditorScreenProps): React.ReactElement {
+  const defaultIndex = useMemo(() => {
+    const redIndex = findOpaqueRedIndex(project.palette.colors);
+    if (redIndex !== -1) {
+      return redIndex;
+    }
+    return findFirstOpaqueIndex(project.palette.colors);
+  }, [project.palette.colors]);
   const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil');
-  const [selectedIndex, setSelectedIndex] = useState(1);
+  const [selectedIndex, setSelectedIndex] = useState(defaultIndex);
   const [undoState, setUndoState] = useState(createUndoState());
   const [isDirty, setIsDirty] = useState(isRestoredWorkingCopy);
   const [isSessionNew, setIsSessionNew] = useState(isNewProject);

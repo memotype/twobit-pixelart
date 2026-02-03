@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 
@@ -27,11 +27,25 @@ export function CanvasView({
   theme,
 }: CanvasViewProps): React.ReactElement {
   const [layout, setLayout] = useState<LayoutSize>({ width: 0, height: 0 });
+  const isDrawingRef = useRef(false);
+  const canvasRef = useRef<View>(null);
+  const originRef = useRef({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    ready: false,
+  });
   const rects = useMemo(() => buildRenderRects(project), [project]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     setLayout({ width, height });
+    originRef.current = {
+      ...originRef.current,
+      width,
+      height,
+    };
   };
 
   const { pixelSize, gridGap } = project.pixelGeometry;
@@ -43,6 +57,40 @@ export function CanvasView({
   const scale = Math.max(4, Math.floor(Math.min(scaleX, scaleY)));
   const viewWidth = logicalWidth * scale;
   const viewHeight = logicalHeight * scale;
+  const checkerSize = Math.max(6, Math.floor(scale * 2));
+  const checkerLight =
+    theme.scheme === 'dark' ? '#1f1f1f' : '#f4f4f4';
+  const checkerDark = theme.scheme === 'dark' ? '#2a2a2a' : '#e6e6e6';
+  const checkerRects = useMemo(() => {
+    const cols = Math.ceil(viewWidth / checkerSize);
+    const rows = Math.ceil(viewHeight / checkerSize);
+    const rects: Array<{
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      color: string;
+    }> = [];
+    for (let y = 0; y < rows; y += 1) {
+      for (let x = 0; x < cols; x += 1) {
+        const isDark = (x + y) % 2 === 0;
+        rects.push({
+          x: x * checkerSize,
+          y: y * checkerSize,
+          w: checkerSize,
+          h: checkerSize,
+          color: isDark ? checkerDark : checkerLight,
+        });
+      }
+    }
+    return rects;
+  }, [
+    checkerDark,
+    checkerLight,
+    checkerSize,
+    viewHeight,
+    viewWidth,
+  ]);
 
   const hitTestIndex = (x: number, y: number): number => {
     const cell = pixelSize + gridGap;
@@ -59,6 +107,45 @@ export function CanvasView({
     return pixelY * project.canvas.width + pixelX;
   };
 
+  const resolveOrigin = () => {
+    if (!canvasRef.current) {
+      return;
+    }
+    canvasRef.current.measureInWindow((x, y, width, height) => {
+      originRef.current = {
+        x,
+        y,
+        width,
+        height,
+        ready: true,
+      };
+    });
+  };
+
+  const handleStrokeMove = (pageX: number, pageY: number) => {
+    if (!isDrawingRef.current) {
+      return;
+    }
+    if (!originRef.current.ready) {
+      resolveOrigin();
+      return;
+    }
+    const localX = pageX - originRef.current.x;
+    const localY = pageY - originRef.current.y;
+    if (
+      localX < 0 ||
+      localY < 0 ||
+      localX > originRef.current.width ||
+      localY > originRef.current.height
+    ) {
+      return;
+    }
+    const index = hitTestIndex(localX, localY);
+    if (index >= 0) {
+      onStrokeMove(index);
+    }
+  };
+
   return (
     <View
       style={[
@@ -71,37 +158,54 @@ export function CanvasView({
       onLayout={handleLayout}
     >
       <View
-        style={[
-          styles.canvas,
-          {
-            width: viewWidth,
-            height: viewHeight,
-            backgroundColor: project.canvas.background || theme.colors.canvas,
-          },
-        ]}
-        onStartShouldSetResponder={() => true}
-        onResponderGrant={(event) => {
-          const index = hitTestIndex(
-            event.nativeEvent.locationX,
-            event.nativeEvent.locationY,
-          );
-          if (index >= 0) {
-            onStrokeStart(index);
-          }
+      style={[
+        styles.canvas,
+        {
+          width: viewWidth,
+          height: viewHeight,
+          backgroundColor: project.canvas.background || 'transparent',
+        },
+      ]}
+      ref={canvasRef}
+      onStartShouldSetResponder={() => true}
+      onResponderGrant={(event) => {
+        resolveOrigin();
+        const localX =
+          event.nativeEvent.pageX - originRef.current.x;
+        const localY =
+          event.nativeEvent.pageY - originRef.current.y;
+        const index = hitTestIndex(localX, localY);
+        if (index >= 0) {
+          isDrawingRef.current = true;
+          onStrokeStart(index);
+        }
+      }}
+      onResponderMove={(event) => {
+        handleStrokeMove(
+          event.nativeEvent.pageX,
+          event.nativeEvent.pageY,
+        );
+      }}
+        onResponderRelease={() => {
+          isDrawingRef.current = false;
+          onStrokeEnd();
         }}
-        onResponderMove={(event) => {
-          const index = hitTestIndex(
-            event.nativeEvent.locationX,
-            event.nativeEvent.locationY,
-          );
-          if (index >= 0) {
-            onStrokeMove(index);
-          }
+        onResponderTerminate={() => {
+          isDrawingRef.current = false;
+          onStrokeEnd();
         }}
-        onResponderRelease={onStrokeEnd}
-        onResponderTerminate={onStrokeEnd}
       >
         <Svg width={viewWidth} height={viewHeight}>
+          {checkerRects.map((rect, index) => (
+            <Rect
+              key={`checker_${index}`}
+              x={rect.x}
+              y={rect.y}
+              width={rect.w}
+              height={rect.h}
+              fill={rect.color}
+            />
+          ))}
           {rects.map((rect, index) => (
             <Rect
               key={`${rect.color}_${index}`}
