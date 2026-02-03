@@ -37,6 +37,7 @@ interface EditorScreenProps {
   theme: Theme;
   topInset: number;
   isNewProject: boolean;
+  isRestoredWorkingCopy: boolean;
 }
 
 interface StrokeState {
@@ -56,11 +57,12 @@ export function EditorScreenV2({
   theme,
   topInset,
   isNewProject,
+  isRestoredWorkingCopy,
 }: EditorScreenProps): React.ReactElement {
   const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil');
   const [selectedIndex, setSelectedIndex] = useState(1);
   const [undoState, setUndoState] = useState(createUndoState());
-  const [isDirty, setIsDirty] = useState(false);
+  const [isDirty, setIsDirty] = useState(isRestoredWorkingCopy);
   const [isSessionNew, setIsSessionNew] = useState(isNewProject);
   const [isRailExpanded, setIsRailExpanded] = useState(false);
   const [pixels, setPixels] = useState<Uint32Array>(
@@ -302,7 +304,7 @@ export function EditorScreenV2({
     <View
       style={[
         styles.root,
-        { backgroundColor: theme.colors.background, paddingTop: topInset },
+        { backgroundColor: theme.colors.background },
       ]}
     >
       <View style={styles.canvasLayer}>

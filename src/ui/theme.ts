@@ -8,6 +8,8 @@ export interface ThemeColors {
   border: string;
   primary: string;
   primaryText: string;
+  neutral: string;
+  neutralText: string;
   danger: string;
   canvas: string;
 }
@@ -25,6 +27,8 @@ const lightColors: ThemeColors = {
   border: '#e5e5e5',
   primary: '#111827',
   primaryText: '#ffffff',
+  neutral: '#e6e3d6',
+  neutralText: '#1f1f1f',
   danger: '#b45309',
   canvas: '#ffffff',
 };
@@ -37,6 +41,8 @@ const darkColors: ThemeColors = {
   border: '#2a2a2a',
   primary: '#f5f5f5',
   primaryText: '#0b0b0b',
+  neutral: '#2b2b2b',
+  neutralText: '#f5f5f5',
   danger: '#fb923c',
   canvas: '#0f0f0f',
 };

@@ -22,6 +22,7 @@ function AppShell(): React.ReactElement {
     null,
   );
   const [isNewProject, setIsNewProject] = useState(false);
+  const [isRestoredWorkingCopy, setIsRestoredWorkingCopy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const scheme = useColorScheme();
   const theme = useMemo(() => getTheme(scheme), [scheme]);
@@ -36,12 +37,18 @@ function AppShell(): React.ReactElement {
   const handleExit = () => {
     setActiveProject(null);
     setIsNewProject(false);
+    setIsRestoredWorkingCopy(false);
     setRefreshKey((prev) => prev + 1);
   };
 
-  const handleOpen = (project: ProjectRuntime, isNew: boolean) => {
+  const handleOpen = (
+    project: ProjectRuntime,
+    isNew: boolean,
+    restoredWorkingCopy: boolean,
+  ) => {
     setActiveProject(project);
     setIsNewProject(isNew);
+    setIsRestoredWorkingCopy(restoredWorkingCopy);
   };
 
   return (
@@ -59,11 +66,13 @@ function AppShell(): React.ReactElement {
       />
       {activeProject ? (
         <EditorScreenV2
+          key={`${activeProject.id}:${isRestoredWorkingCopy ? 'r' : 'c'}`}
           project={activeProject}
           onExit={handleExit}
           theme={theme}
           topInset={topInset}
           isNewProject={isNewProject}
+          isRestoredWorkingCopy={isRestoredWorkingCopy}
         />
       ) : (
         <GalleryScreen

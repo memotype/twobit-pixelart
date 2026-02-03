@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Animated,
   FlatList,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -24,7 +26,11 @@ import {
 } from '../../lib/storage/projectStorage';
 
 interface GalleryScreenProps {
-  onOpen: (project: ProjectRuntime, isNew: boolean) => void;
+  onOpen: (
+    project: ProjectRuntime,
+    isNew: boolean,
+    isRestoredWorkingCopy: boolean,
+  ) => void;
   refreshKey: number;
   theme: Theme;
   topInset: number;
@@ -38,6 +44,19 @@ function clampInt(value: string, fallback: number): number {
   return Math.max(1, Math.min(128, parsed));
 }
 
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
+
 export function GalleryScreen({
   onOpen,
   refreshKey,
@@ -47,11 +66,90 @@ export function GalleryScreen({
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
-  const [width, setWidth] = useState('32');
-  const [height, setHeight] = useState('32');
+  const [width, setWidth] = useState('');
+  const [height, setHeight] = useState('');
+  const [nameFocused, setNameFocused] = useState(false);
+  const [widthFocused, setWidthFocused] = useState(false);
+  const [heightFocused, setHeightFocused] = useState(false);
+  const window = useWindowDimensions();
+  const nameFlash = React.useRef(new Animated.Value(0)).current;
+  const widthFlash = React.useRef(new Animated.Value(0)).current;
+  const heightFlash = React.useRef(new Animated.Value(0)).current;
 
   const trimmedName = name.trim();
-  const isCreateEnabled = trimmedName.length > 0;
+  const trimmedWidth = width.trim();
+  const trimmedHeight = height.trim();
+  const isNameValid = trimmedName.length > 0;
+  const isWidthValid = trimmedWidth.length > 0;
+  const isHeightValid = trimmedHeight.length > 0;
+  const isCreateEnabled = isNameValid && isWidthValid && isHeightValid;
+  const headerTopPadding = window.height * 0.005;
+  const errorBorderColor =
+    theme.scheme === 'dark' ? '#800020' : '#dc143c';
+  const nameBorderColor = useMemo(
+    () =>
+      isNameValid
+        ? theme.colors.border
+        : nameFlash.interpolate({
+            inputRange: [0, 1],
+            outputRange: [theme.colors.border, errorBorderColor],
+          }),
+    [errorBorderColor, isNameValid, nameFlash, theme.colors.border],
+  );
+  const widthBorderColor = useMemo(
+    () =>
+      isWidthValid
+        ? theme.colors.border
+        : widthFlash.interpolate({
+            inputRange: [0, 1],
+            outputRange: [theme.colors.border, errorBorderColor],
+          }),
+    [errorBorderColor, isWidthValid, theme.colors.border, widthFlash],
+  );
+  const heightBorderColor = useMemo(
+    () =>
+      isHeightValid
+        ? theme.colors.border
+        : heightFlash.interpolate({
+            inputRange: [0, 1],
+            outputRange: [theme.colors.border, errorBorderColor],
+          }),
+    [errorBorderColor, heightFlash, isHeightValid, theme.colors.border],
+  );
+
+  const flashInputBorders = useCallback(() => {
+    const flashes = [
+      { value: nameFlash, enabled: !isNameValid },
+      { value: widthFlash, enabled: !isWidthValid },
+      { value: heightFlash, enabled: !isHeightValid },
+    ];
+    flashes.forEach(({ value, enabled }) => {
+      if (!enabled) {
+        return;
+      }
+      value.stopAnimation();
+      value.setValue(0);
+      Animated.sequence([
+        Animated.timing(value, {
+          toValue: 1,
+          duration: 140,
+          useNativeDriver: false,
+        }),
+        Animated.timing(value, {
+          toValue: 0,
+          duration: 320,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    });
+  }, [
+    heightFlash,
+    isHeightValid,
+    isNameValid,
+    isWidthValid,
+    nameFlash,
+    widthFlash,
+  ]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -73,7 +171,7 @@ export function GalleryScreen({
       const hasWorkingCopy = await workingCopyExists(id);
       if (!hasWorkingCopy) {
         const project = await loadProject(id);
-        onOpen(project, false);
+        onOpen(project, false, false);
         return;
       }
       Alert.alert('Restore unsaved changes?', undefined, [
@@ -83,14 +181,14 @@ export function GalleryScreen({
           onPress: async () => {
             await deleteWorkingCopy(id);
             const project = await loadProject(id);
-            onOpen(project, false);
+            onOpen(project, false, false);
           },
         },
         {
           text: 'Restore',
           onPress: async () => {
             const project = await loadWorkingCopy(id);
-            onOpen(project, false);
+            onOpen(project, false, true);
           },
         },
       ]);
@@ -100,18 +198,26 @@ export function GalleryScreen({
 
   const handleCreate = useCallback(async () => {
     if (!isCreateEnabled) {
+      flashInputBorders();
       return;
     }
-    const nextWidth = clampInt(width, 32);
-    const nextHeight = clampInt(height, 32);
+    const nextWidth = clampInt(trimmedWidth, 32);
+    const nextHeight = clampInt(trimmedHeight, 32);
     const project = createNewProject(
       trimmedName || 'Untitled',
       nextWidth,
       nextHeight,
     );
     await saveProject(project);
-    onOpen(project, true);
-  }, [height, isCreateEnabled, onOpen, trimmedName, width]);
+    onOpen(project, true, false);
+  }, [
+    flashInputBorders,
+    isCreateEnabled,
+    onOpen,
+    trimmedHeight,
+    trimmedName,
+    trimmedWidth,
+  ]);
 
   const handleOpen = useCallback(
     async (id: string) => {
@@ -140,11 +246,10 @@ export function GalleryScreen({
         styles.safeArea,
         {
           backgroundColor: theme.colors.background,
-          paddingTop: topInset,
         },
       ]}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTopPadding }]}>
         <Text style={[styles.title, { color: theme.colors.text }]}>
           Pixel Forge
         </Text>
@@ -158,79 +263,81 @@ export function GalleryScreen({
           { backgroundColor: theme.colors.card },
         ]}
       >
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-          New Project
-        </Text>
         <View style={styles.row}>
-          <TextInput
+          <AnimatedTextInput
             style={[
               styles.input,
               styles.nameInput,
               {
                 backgroundColor: theme.colors.background,
                 color: theme.colors.text,
+                borderColor: nameBorderColor,
               },
             ]}
-            placeholder="New Project Title"
+            placeholder={nameFocused ? '' : 'New Project Title'}
             placeholderTextColor={theme.colors.textMuted}
             value={name}
             onChangeText={setName}
+            onFocus={() => setNameFocused(true)}
+            onBlur={() => setNameFocused(false)}
           />
         </View>
-        <View style={styles.row}>
+        <View style={[styles.row, styles.rowSpacing]}>
           <View style={styles.field}>
-            <Text style={[styles.label, { color: theme.colors.textMuted }]}>
-              Width
-            </Text>
-            <TextInput
+            <AnimatedTextInput
               style={[
                 styles.input,
                 {
                   backgroundColor: theme.colors.background,
                   color: theme.colors.text,
+                  borderColor: widthBorderColor,
                 },
               ]}
               keyboardType="number-pad"
+              placeholder={widthFocused ? '' : 'Width'}
               placeholderTextColor={theme.colors.textMuted}
               value={width}
               onChangeText={setWidth}
+              onFocus={() => setWidthFocused(true)}
+              onBlur={() => setWidthFocused(false)}
             />
           </View>
           <View style={styles.field}>
-            <Text style={[styles.label, { color: theme.colors.textMuted }]}>
-              Height
-            </Text>
-            <TextInput
+            <AnimatedTextInput
               style={[
                 styles.input,
                 {
                   backgroundColor: theme.colors.background,
                   color: theme.colors.text,
+                  borderColor: heightBorderColor,
                 },
               ]}
               keyboardType="number-pad"
+              placeholder={heightFocused ? '' : 'Height'}
               placeholderTextColor={theme.colors.textMuted}
               value={height}
               onChangeText={setHeight}
+              onFocus={() => setHeightFocused(true)}
+              onBlur={() => setHeightFocused(false)}
             />
           </View>
         </View>
         <Pressable
           style={[
             styles.primaryButton,
+            styles.rowSpacing,
             {
-              backgroundColor: theme.colors.primary ?? theme.colors.text,
+              backgroundColor: theme.colors.neutral,
             },
             !isCreateEnabled && styles.primaryButtonDisabled,
           ]}
-          disabled={!isCreateEnabled}
           onPress={handleCreate}
         >
           <Text
             style={[
               styles.primaryButtonText,
               {
-                color: theme.colors.primaryText ?? theme.colors.background,
+                color: theme.colors.neutralText,
               },
               !isCreateEnabled && styles.primaryButtonTextDisabled,
             ]}
@@ -270,7 +377,7 @@ export function GalleryScreen({
               <Text
                 style={[styles.projectMeta, { color: theme.colors.textMuted }]}
               >
-                {item.updatedAt}
+                {formatTimestamp(item.updatedAt)}
               </Text>
             </Pressable>
             <Pressable
@@ -293,8 +400,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 24,
-    paddingBottom: 12,
+    paddingHorizontal: 24,
+    paddingTop: 0,
+    paddingBottom: 10,
   },
   title: {
     fontSize: 28,
@@ -321,20 +429,18 @@ const styles = StyleSheet.create({
     color: '#1f1f1f',
   },
   row: {
-    marginTop: 12,
     flexDirection: 'row',
     gap: 12,
+  },
+  rowSpacing: {
+    marginTop: 12,
   },
   field: {
     flex: 1,
   },
-  label: {
-    fontSize: 12,
-    color: '#4f4f4f',
-    marginBottom: 4,
-  },
   input: {
     borderRadius: 8,
+    borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
@@ -343,7 +449,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   primaryButton: {
-    marginTop: 16,
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
