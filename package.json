@@ -1,6 +1,6 @@
 {
   "name": "twobit-pixelart",
-  "version": "4.19.0",
+  "version": "0.0.9",
   "private": true,
   "description": "Baseline template for TypeScript and Expo tooling.",
   "main": "expo/AppEntry.js",

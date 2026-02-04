@@ -13,22 +13,29 @@ None.
      snapshot), or reduce snapshot frequency while drawing.
 
 2. [medium] Checkerboard draws many rects per frame
-   - `checkerRects` still creates many Skia rect draws at large scales, which
-     adds overhead on top of the bitmap work.
-   - Resolution: replace with a small tiled pattern or cached bitmap.
+   - Mitigated: checkerboard now renders from a cached tile image repeated
+     across the canvas instead of drawing one rect per checker cell.
+   - Remaining risk: very large canvas viewports can still spend time on
+     repeated tile-image draws; profile in release APK.
 
-3. [low] RAF flush is not cancelled on unmount
-   - `EditorScreen`/`EditorScreenV2` schedule RAF flushes but never cancel on
-     unmount, which can set state after unmount in edge cases.
-   - Resolution: cleanup pending RAF in a `useEffect` teardown.
-
-4. [medium] Long-stroke lag risk remains under heavy load
-   - Architecture fix applied: gesture worklet now sends segment endpoints
-     (`fromIndex`, `toIndex`) to JS, and interpolation runs in JS with
-     Bresenham stepping. This removes large per-update index arrays from
-     `runOnJS` traffic and should reduce bridge pressure while preserving
-     full pixel fidelity.
+3. [medium] Long-stroke lag risk remains under heavy load
+   - Architecture fixes applied: gesture worklet sends segment endpoints
+     (`fromIndex`, `toIndex`) to JS, interpolation is Bresenham, and editor
+     pixels now mutate in a stable in-memory buffer (no per-frame full-buffer
+     clone on brush updates). Canvas dirty updates now rerender `CanvasView`
+     via an imperative ref instead of rerendering the full editor shell, which
+     further reduces frame-time jitter during long strokes. Stroke creation now
+     initializes lazily from either start or segment callbacks to avoid an
+     initial-gap race when `runOnJS` callback order jitters.
    - Remaining risk: very large canvases can still lag due to per-batch
      `makeImageSnapshot()` and checkerboard draw overhead.
    - Resolution: validate on-device at ~250x250 and, if needed, remove
      per-batch snapshot work and/or cache the checkerboard.
+
+4. [high] Initial drag gap still appears after first one or two pixels
+   - User reports a persistent pattern: initial tap paints one or two pixels,
+     then a gap appears before line continuity resumes.
+   - Debug instrumentation is now enabled in `EditorScreenV2` and `CanvasView`
+     to trace start/segment/end callback ordering and first applied pixels.
+   - Resolution: keep instrumentation until APK test confirms issue remains
+     resolved, then remove debug logs.

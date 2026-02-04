@@ -27,7 +27,7 @@ import {
 } from '../../lib/storage/projectStorage';
 import { exportSvgFile } from '../../lib/export/svgExport';
 import { exportPng, sharePng, type PngScale } from '../../lib/export/pngExport';
-import { CanvasView } from './CanvasView';
+import { CanvasView, type CanvasViewHandle } from './CanvasView';
 import { addPatch, applyPatch, createUndoState } from './undo';
 import { useAutosave } from './useAutosave';
 import type { Theme } from '../../ui/theme';
@@ -51,6 +51,7 @@ interface StrokeState {
 const AUTOSAVE_DELAY_MS = 1200;
 const UNDO_LIMIT = 100;
 const RAIL_SIDE: 'left' | 'right' = 'right';
+const STROKE_TRACE_ENABLED = true;
 
 function* lineIndices(
   fromIndex: number,
@@ -131,24 +132,25 @@ export function EditorScreenV2({
   const [isDirty, setIsDirty] = useState(isRestoredWorkingCopy);
   const [isSessionNew, setIsSessionNew] = useState(isNewProject);
   const [isRailExpanded, setIsRailExpanded] = useState(false);
-  const [dirtyBatch, setDirtyBatch] = useState({
-    version: 0,
-    indices: [] as number[],
-  });
-  const [fullRedrawToken, setFullRedrawToken] = useState(0);
-  const [pixels, setPixels] = useState<Uint32Array>(
+  const [pixelBuffer] = useState<Uint32Array>(
     () => new Uint32Array(project.pixels),
   );
+  const canvasRef = useRef<CanvasViewHandle | null>(null);
   const strokeRef = useRef<StrokeState | null>(null);
-  const pixelsRef = useRef<Uint32Array>(pixels);
+  const pixelsRef = useRef<Uint32Array>(pixelBuffer);
   const dirtyIndicesRef = useRef<Set<number>>(new Set());
-  const pendingPixelsRef = useRef<Uint32Array | null>(null);
   const rafRef = useRef<number | null>(null);
   const promptOpenRef = useRef(false);
-
-  useEffect(() => {
-    pixelsRef.current = pixels;
-  }, [pixels]);
+  const strokeIdRef = useRef(0);
+  const traceRef = useRef({
+    id: 0,
+    startSeq: -1,
+    startIndex: -1,
+    segmentCount: 0,
+    moveCount: 0,
+    appliedCount: 0,
+    firstAppliedSeq: -1,
+  });
 
   const transparentIndex = useMemo(() => {
     const index = project.palette.colors.findIndex((color) =>
@@ -157,37 +159,28 @@ export function EditorScreenV2({
     return index === -1 ? 0 : index;
   }, [project.palette.colors]);
 
-  const renderProject = useMemo(
-    () => ({ ...project, pixels }),
-    [project, pixels],
-  );
+  const buildProjectSnapshot = useCallback((): ProjectRuntime => {
+    return {
+      ...project,
+      pixels: new Uint32Array(pixelsRef.current),
+    };
+  }, [project]);
 
   const autosave = useAutosave(async () => {
-    await saveWorkingCopy(renderProject);
+    await saveWorkingCopy(buildProjectSnapshot());
   }, AUTOSAVE_DELAY_MS);
 
-  const flushPendingPixels = useCallback(() => {
-    if (!pendingPixelsRef.current) {
-      return;
-    }
-    const next = pendingPixelsRef.current;
-    pendingPixelsRef.current = null;
+  const flushDirtyPixels = useCallback(() => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
-    pixelsRef.current = next;
-    setPixels(next);
     const indices = Array.from(dirtyIndicesRef.current);
     dirtyIndicesRef.current.clear();
-    if (indices.length === 0) {
-      setFullRedrawToken((prev) => prev + 1);
+    if (indices.length < 1) {
       return;
     }
-    setDirtyBatch((prev) => ({
-      version: prev.version + 1,
-      indices,
-    }));
+    canvasRef.current?.applyDirtyPixels(indices);
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -196,96 +189,152 @@ export function EditorScreenV2({
     }
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
-      flushPendingPixels();
+      flushDirtyPixels();
     });
-  }, [flushPendingPixels]);
-
-  const getActivePixels = useCallback(() => {
-    return pendingPixelsRef.current ?? pixelsRef.current;
-  }, []);
+  }, [flushDirtyPixels]);
 
   const applyPixel = useCallback(
     (index: number, value: number) => {
-      const base = getActivePixels();
-      if (!pendingPixelsRef.current) {
-        pendingPixelsRef.current = new Uint32Array(base);
+      if (pixelsRef.current[index] === value) {
+        return;
       }
-      pendingPixelsRef.current[index] = value;
+      pixelsRef.current[index] = value;
       dirtyIndicesRef.current.add(index);
       scheduleFlush();
     },
-    [getActivePixels, scheduleFlush],
+    [scheduleFlush],
   );
 
-  const handleStrokeStart = useCallback(
-    (index: number) => {
+  const traceStroke = useCallback((message: string) => {
+    if (!STROKE_TRACE_ENABLED) {
+      return;
+    }
+    console.log(`[stroke-trace] ${message}`);
+  }, []);
+
+  const ensureStroke = useCallback((): StrokeState => {
+    if (!strokeRef.current) {
       strokeRef.current = {
         indices: [],
         before: [],
         after: [],
         seen: new Set(),
       };
-      const paintValue = tool === 'eraser' ? transparentIndex : selectedIndex;
-      const stroke = strokeRef.current;
-      if (!stroke.seen.has(index)) {
-        const activePixels = getActivePixels();
-        stroke.seen.add(index);
-        stroke.indices.push(index);
-        stroke.before.push(activePixels[index]);
-        stroke.after.push(paintValue);
+    }
+    return strokeRef.current;
+  }, []);
+
+  const handleStrokeStart = useCallback(
+    (index: number, seq: number) => {
+      if (!strokeRef.current) {
+        strokeIdRef.current += 1;
+        traceRef.current = {
+          id: strokeIdRef.current,
+          startSeq: seq,
+          startIndex: index,
+          segmentCount: 0,
+          moveCount: 0,
+          appliedCount: 0,
+          firstAppliedSeq: -1,
+        };
+        traceStroke(
+          `start id=${strokeIdRef.current} seq=${seq} index=${index}`,
+        );
       }
-      applyPixel(index, paintValue);
+      const stroke = ensureStroke();
+      const paintValue = tool === 'eraser' ? transparentIndex : selectedIndex;
+      if (!stroke.seen.has(index)) {
+        const currentValue = pixelsRef.current[index];
+        stroke.seen.add(index);
+        if (currentValue !== paintValue) {
+          stroke.indices.push(index);
+          stroke.before.push(currentValue);
+          stroke.after.push(paintValue);
+          applyPixel(index, paintValue);
+          traceRef.current.appliedCount += 1;
+          if (traceRef.current.firstAppliedSeq < 0) {
+            traceRef.current.firstAppliedSeq = seq;
+          }
+        }
+      }
     },
-    [applyPixel, getActivePixels, selectedIndex, tool, transparentIndex],
+    [
+      applyPixel,
+      ensureStroke,
+      selectedIndex,
+      tool,
+      traceStroke,
+      transparentIndex,
+    ],
   );
 
   const handleStrokeMove = useCallback(
-    (index: number) => {
-      const stroke = strokeRef.current;
-      if (!stroke) {
-        return;
-      }
+    (index: number, seq: number) => {
+      const stroke = ensureStroke();
+      traceRef.current.moveCount += 1;
       const paintValue = tool === 'eraser' ? transparentIndex : selectedIndex;
       if (stroke.seen.has(index)) {
         return;
       }
-      const activePixels = getActivePixels();
+      const currentValue = pixelsRef.current[index];
       stroke.seen.add(index);
-      stroke.indices.push(index);
-      stroke.before.push(activePixels[index]);
-      stroke.after.push(paintValue);
-      applyPixel(index, paintValue);
+      if (currentValue !== paintValue) {
+        stroke.indices.push(index);
+        stroke.before.push(currentValue);
+        stroke.after.push(paintValue);
+        applyPixel(index, paintValue);
+        traceRef.current.appliedCount += 1;
+        if (traceRef.current.firstAppliedSeq < 0) {
+          traceRef.current.firstAppliedSeq = seq;
+        }
+      }
     },
-    [applyPixel, getActivePixels, selectedIndex, tool, transparentIndex],
+    [applyPixel, ensureStroke, selectedIndex, tool, transparentIndex],
   );
 
   const handleStrokeSegment = useCallback(
-    (fromIndex: number, toIndex: number) => {
+    (fromIndex: number, toIndex: number, seq: number) => {
+      traceRef.current.segmentCount += 1;
+      if (traceRef.current.segmentCount <= 6) {
+        traceStroke(
+          `segment id=${traceRef.current.id} seq=${seq}` +
+            ` from=${fromIndex} to=${toIndex}`,
+        );
+      }
       for (const index of lineIndices(
         fromIndex,
         toIndex,
         project.canvas.width,
       )) {
-        handleStrokeMove(index);
+        handleStrokeMove(index, seq);
       }
     },
-    [handleStrokeMove, project.canvas.width],
+    [handleStrokeMove, project.canvas.width, traceStroke],
   );
 
-  const handleStrokeEnd = useCallback(() => {
+  const handleStrokeEnd = useCallback((seq: number) => {
     const stroke = strokeRef.current;
     if (!stroke) {
+      traceStroke(`end seq=${seq} with no stroke state`);
       return;
     }
     strokeRef.current = null;
+    traceStroke(
+      `end id=${traceRef.current.id} seq=${seq} ` +
+        `startSeq=${traceRef.current.startSeq} ` +
+        `segments=${traceRef.current.segmentCount} ` +
+        `moves=${traceRef.current.moveCount} ` +
+        `applied=${traceRef.current.appliedCount} ` +
+        `firstAppliedSeq=${traceRef.current.firstAppliedSeq}`,
+    );
     if (stroke.indices.length === 0) {
       return;
     }
-    flushPendingPixels();
+    flushDirtyPixels();
     setUndoState((state) => addPatch(state, stroke, UNDO_LIMIT));
     setIsDirty(true);
     autosave.markDirty();
-  }, [autosave, flushPendingPixels]);
+  }, [autosave, flushDirtyPixels, traceStroke]);
 
   const handleUndo = useCallback(() => {
     setUndoState((state) => {
@@ -293,14 +342,9 @@ export function EditorScreenV2({
       if (!patch) {
         return state;
       }
-      flushPendingPixels();
-      setPixels((prev) => {
-        const next = new Uint32Array(prev);
-        applyPatch(next, patch, 'undo');
-        pixelsRef.current = next;
-        return next;
-      });
-      setFullRedrawToken((prev) => prev + 1);
+      flushDirtyPixels();
+      applyPatch(pixelsRef.current, patch, 'undo');
+      canvasRef.current?.requestFullRedraw();
       return {
         undo: state.undo.slice(0, -1),
         redo: [...state.redo, patch],
@@ -308,7 +352,7 @@ export function EditorScreenV2({
     });
     setIsDirty(true);
     autosave.markDirty();
-  }, [autosave, flushPendingPixels]);
+  }, [autosave, flushDirtyPixels]);
 
   const handleRedo = useCallback(() => {
     setUndoState((state) => {
@@ -316,14 +360,9 @@ export function EditorScreenV2({
       if (!patch) {
         return state;
       }
-      flushPendingPixels();
-      setPixels((prev) => {
-        const next = new Uint32Array(prev);
-        applyPatch(next, patch, 'redo');
-        pixelsRef.current = next;
-        return next;
-      });
-      setFullRedrawToken((prev) => prev + 1);
+      flushDirtyPixels();
+      applyPatch(pixelsRef.current, patch, 'redo');
+      canvasRef.current?.requestFullRedraw();
       return {
         undo: [...state.undo, patch],
         redo: state.redo.slice(0, -1),
@@ -331,23 +370,23 @@ export function EditorScreenV2({
     });
     setIsDirty(true);
     autosave.markDirty();
-  }, [autosave, flushPendingPixels]);
+  }, [autosave, flushDirtyPixels]);
 
   const explicitSaveAndExit = useCallback(async () => {
-    await saveProjectExplicit(renderProject);
+    await saveProjectExplicit(buildProjectSnapshot());
     setIsSessionNew(false);
     setIsDirty(false);
     onExit();
-  }, [onExit, renderProject]);
+  }, [buildProjectSnapshot, onExit]);
 
   const discardAndExit = useCallback(async () => {
     if (isSessionNew) {
-      await deleteProject(renderProject.id);
+      await deleteProject(project.id);
     }
-    flushPendingPixels();
-    await deleteWorkingCopy(renderProject.id);
+    flushDirtyPixels();
+    await deleteWorkingCopy(project.id);
     onExit();
-  }, [flushPendingPixels, isSessionNew, onExit, renderProject.id]);
+  }, [flushDirtyPixels, isSessionNew, onExit, project.id]);
 
   const requestExit = useCallback(() => {
     if (!isDirty && !isSessionNew) {
@@ -391,7 +430,7 @@ export function EditorScreenV2({
   ]);
 
   const handleExportSvg = useCallback(async () => {
-    const path = await exportSvgFile(renderProject);
+    const path = await exportSvgFile(buildProjectSnapshot());
     const available = await Sharing.isAvailableAsync();
     if (available) {
       await Sharing.shareAsync(path, {
@@ -399,14 +438,14 @@ export function EditorScreenV2({
         dialogTitle: 'Share SVG',
       });
     }
-  }, [renderProject]);
+  }, [buildProjectSnapshot]);
 
   const handleExportPng = useCallback(
     async (scale: PngScale) => {
-      const path = await exportPng(renderProject, scale);
+      const path = await exportPng(buildProjectSnapshot(), scale);
       await sharePng(path);
     },
-    [renderProject],
+    [buildProjectSnapshot],
   );
 
   const autosaveText = useMemo(() => {
@@ -430,6 +469,15 @@ export function EditorScreenV2({
     RAIL_SIDE === 'left' ? styles.railLeft : styles.railRight;
 
   useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
       requestExit();
       return true;
@@ -446,14 +494,13 @@ export function EditorScreenV2({
     >
       <View style={styles.canvasLayer}>
         <CanvasView
-          project={renderProject}
+          ref={canvasRef}
+          project={project}
+          pixels={pixelBuffer}
           onStrokeStart={handleStrokeStart}
           onStrokeSegment={handleStrokeSegment}
           onStrokeEnd={handleStrokeEnd}
           theme={theme}
-          dirtyIndices={dirtyBatch.indices}
-          dirtyVersion={dirtyBatch.version}
-          fullRedrawToken={fullRedrawToken}
         />
       </View>
       <View

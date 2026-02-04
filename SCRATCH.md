@@ -40,6 +40,30 @@ Current state notes for handoff.
     (`fromIndex` -> `toIndex`) from worklet to JS.
   - `EditorScreenV2` now interpolates each segment in JS with Bresenham
     stepping to preserve full pixel fidelity while reducing `runOnJS` payload.
+- Editor pixel writes now use one stable mutable buffer:
+  - Brush updates no longer clone a full `Uint32Array` per frame.
+  - Dirty pixel sets trigger draw updates; snapshots for save/export are
+    created only when needed.
+- Editor draw invalidation no longer rerenders the whole editor UI:
+  - `EditorScreenV2` now pushes dirty/full-redraw requests to `CanvasView`
+    through an imperative ref.
+  - Per-frame updates now rerender canvas internals only, reducing jank from
+    rail/button subtree rerenders.
+- Stroke-start ordering guard added:
+  - `EditorScreenV2` now lazily creates stroke state (`ensureStroke`) from
+    either start or segment callbacks.
+  - This avoids dropped initial drag segments when `runOnJS` callback order
+    jitters under load.
+- Temporary stroke instrumentation is enabled for debugging:
+  - `CanvasView` now forwards a monotonic worklet sequence number with
+    start/segment/end callbacks.
+  - `EditorScreenV2` logs `[stroke-trace]` lines to Expo tunnel output,
+    including sequence numbers, segment counts, and first-applied sequence.
+- Checkerboard rendering optimization:
+  - `CanvasView` now builds a cached checker tile image once per style/scale.
+  - Background draw now repeats that tile image instead of drawing thousands
+    of per-cell rects.
+- RAF cleanup on unmount was added in `EditorScreenV2`.
 - Remaining major bottlenecks are tracked in `ISSUES.md`.
 
 ## Tooling status

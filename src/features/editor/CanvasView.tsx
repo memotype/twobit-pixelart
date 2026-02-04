@@ -1,4 +1,11 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import {
   BlendMode,
@@ -6,7 +13,6 @@ import {
   FilterMode,
   Image,
   MipmapMode,
-  Rect,
   Skia,
 } from '@shopify/react-native-skia';
 import {
@@ -32,14 +38,29 @@ import type {
 
 interface CanvasViewProps {
   project: ProjectRuntime;
-  onStrokeStart: (index: number) => void;
-  onStrokeSegment: (fromIndex: number, toIndex: number) => void;
-  onStrokeEnd: () => void;
+  pixels: Uint32Array;
+  onStrokeStart: (index: number, seq: number) => void;
+  onStrokeSegment: (
+    fromIndex: number,
+    toIndex: number,
+    seq: number,
+  ) => void;
+  onStrokeEnd: (seq: number) => void;
   theme: Theme;
-  dirtyIndices: number[];
+}
+
+interface DirtyFrame {
+  indices: number[];
   dirtyVersion: number;
   fullRedrawToken: number;
 }
+
+export interface CanvasViewHandle {
+  applyDirtyPixels: (indices: number[]) => void;
+  requestFullRedraw: () => void;
+}
+
+const CHECKER_TILE_CELLS = 8;
 
 interface LayoutSize {
   width: number;
@@ -61,17 +82,24 @@ function createClearPaint(): SkPaint {
   return paint;
 }
 
-export function CanvasView({
-  project,
-  onStrokeStart,
-  onStrokeSegment,
-  onStrokeEnd,
-  theme,
-  dirtyIndices,
-  dirtyVersion,
-  fullRedrawToken,
-}: CanvasViewProps): React.ReactElement {
+export const CanvasView = forwardRef<CanvasViewHandle, CanvasViewProps>(
+  function CanvasView(
+    {
+      project,
+      pixels,
+      onStrokeStart,
+      onStrokeSegment,
+      onStrokeEnd,
+      theme,
+    }: CanvasViewProps,
+    ref,
+  ): React.ReactElement {
   const [layout, setLayout] = useState<LayoutSize>({ width: 0, height: 0 });
+  const [dirtyFrame, setDirtyFrame] = useState<DirtyFrame>({
+    indices: [],
+    dirtyVersion: 0,
+    fullRedrawToken: 0,
+  });
   const surfaceRef = useRef<SkSurface | null>(null);
   const paintsRef = useRef<SkPaint[]>([]);
   const clearPaintRef = useRef<SkPaint>(createClearPaint());
@@ -83,10 +111,35 @@ export function CanvasView({
   const activeSv = useSharedValue(false);
   const lastXsv = useSharedValue(-1);
   const lastYsv = useSharedValue(-1);
+  const seqSv = useSharedValue(0);
+
+  useImperativeHandle(ref, () => ({
+    applyDirtyPixels: (indices: number[]) => {
+      if (indices.length < 1) {
+        return;
+      }
+      setDirtyFrame((prev) => ({
+        indices,
+        dirtyVersion: prev.dirtyVersion + 1,
+        fullRedrawToken: prev.fullRedrawToken,
+      }));
+    },
+    requestFullRedraw: () => {
+      setDirtyFrame((prev) => ({
+        indices: [],
+        dirtyVersion: prev.dirtyVersion,
+        fullRedrawToken: prev.fullRedrawToken + 1,
+      }));
+    },
+  }), []);
 
   const sampling = useMemo(
     () => ({ filter: FilterMode.Nearest, mipmap: MipmapMode.None }),
     [],
+  );
+  const paletteKey = useMemo(
+    () => project.palette.colors.join(','),
+    [project.palette.colors],
   );
   const paletteRgba = useMemo(
     () => project.palette.colors.map(parseHexColor),
@@ -114,7 +167,7 @@ export function CanvasView({
 
   const drawPixel = useCallback(
     (index: number, canvas: ReturnType<SkSurface['getCanvas']>) => {
-      const colorIndex = project.pixels[index];
+      const colorIndex = pixels[index];
       const color = paletteRgba[colorIndex] ?? paletteRgba[0];
       const x = index % project.canvas.width;
       const y = Math.floor(index / project.canvas.width);
@@ -126,49 +179,50 @@ export function CanvasView({
       const paint = paintsRef.current[colorIndex] ?? paintsRef.current[0];
       canvas.drawRect(rect, paint);
     },
-    [paletteRgba, project.canvas.width, project.pixels],
+    [paletteRgba, pixels, project.canvas.width],
   );
 
   const image: SkImage | null = useMemo(() => {
-    paintsRef.current = project.palette.colors.map(createPaint);
+    if (appliedRef.current.paletteKey !== paletteKey) {
+      paintsRef.current = project.palette.colors.map(createPaint);
+    }
     const surface = ensureSurface();
     if (!surface) {
       return null;
     }
-    const paletteKey = project.palette.colors.join(',');
     const canvas = surface.getCanvas();
     const fullRedrawNeeded =
-      appliedRef.current.fullRedrawToken !== fullRedrawToken ||
+      appliedRef.current.fullRedrawToken !== dirtyFrame.fullRedrawToken ||
       appliedRef.current.paletteKey !== paletteKey;
     if (fullRedrawNeeded) {
       canvas.clear(Skia.Color('#00000000'));
-      for (let i = 0; i < project.pixels.length; i += 1) {
+      for (let i = 0; i < pixels.length; i += 1) {
         drawPixel(i, canvas);
       }
       appliedRef.current = {
-        fullRedrawToken,
-        dirtyVersion,
+        fullRedrawToken: dirtyFrame.fullRedrawToken,
+        dirtyVersion: dirtyFrame.dirtyVersion,
         paletteKey,
       };
     } else if (
-      appliedRef.current.dirtyVersion !== dirtyVersion &&
-      dirtyIndices.length > 0
+      appliedRef.current.dirtyVersion !== dirtyFrame.dirtyVersion &&
+      dirtyFrame.indices.length > 0
     ) {
-      for (const index of dirtyIndices) {
+      for (const index of dirtyFrame.indices) {
         drawPixel(index, canvas);
       }
-      appliedRef.current.dirtyVersion = dirtyVersion;
+      appliedRef.current.dirtyVersion = dirtyFrame.dirtyVersion;
     }
-    surface.flush();
     return surface.makeImageSnapshot();
   }, [
-    dirtyIndices,
-    dirtyVersion,
+    dirtyFrame.dirtyVersion,
+    dirtyFrame.fullRedrawToken,
+    dirtyFrame.indices,
     drawPixel,
     ensureSurface,
-    fullRedrawToken,
+    paletteKey,
+    pixels,
     project.palette.colors,
-    project.pixels,
   ]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
@@ -189,29 +243,52 @@ export function CanvasView({
   const checkerLight =
     theme.scheme === 'dark' ? '#1f1f1f' : '#f4f4f4';
   const checkerDark = theme.scheme === 'dark' ? '#2a2a2a' : '#e6e6e6';
-  const checkerRects = useMemo(() => {
-    const cols = Math.ceil(viewWidth / checkerSize);
-    const rows = Math.ceil(viewHeight / checkerSize);
-    const rects: Array<{
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-      color: string;
-    }> = [];
-    for (let y = 0; y < rows; y += 1) {
-      for (let x = 0; x < cols; x += 1) {
+  const checkerTiles = useMemo(() => {
+    const tileSize = checkerSize * CHECKER_TILE_CELLS;
+    const tileSurface = Skia.Surface.Make(tileSize, tileSize);
+    if (!tileSurface) {
+      return {
+        image: null as SkImage | null,
+        draws: [] as Array<{
+          x: number;
+          y: number;
+        }>,
+        tileSize,
+      };
+    }
+    const tileCanvas = tileSurface.getCanvas();
+    for (let y = 0; y < CHECKER_TILE_CELLS; y += 1) {
+      for (let x = 0; x < CHECKER_TILE_CELLS; x += 1) {
         const isDark = (x + y) % 2 === 0;
-        rects.push({
-          x: x * checkerSize,
-          y: y * checkerSize,
-          w: checkerSize,
-          h: checkerSize,
-          color: isDark ? checkerDark : checkerLight,
-        });
+        const paint = Skia.Paint();
+        paint.setColor(Skia.Color(isDark ? checkerDark : checkerLight));
+        tileCanvas.drawRect(
+          Skia.XYWHRect(
+            x * checkerSize,
+            y * checkerSize,
+            checkerSize,
+            checkerSize,
+          ),
+          paint,
+        );
       }
     }
-    return rects;
+    const draws: Array<{
+      x: number;
+      y: number;
+    }> = [];
+    const cols = Math.ceil(viewWidth / tileSize);
+    const rows = Math.ceil(viewHeight / tileSize);
+    for (let y = 0; y < rows; y += 1) {
+      for (let x = 0; x < cols; x += 1) {
+        draws.push({ x: x * tileSize, y: y * tileSize });
+      }
+    }
+    return {
+      image: tileSurface.makeImageSnapshot(),
+      draws,
+      tileSize,
+    };
   }, [
     checkerDark,
     checkerLight,
@@ -229,6 +306,8 @@ export function CanvasView({
       .maxPointers(1)
       .onBegin((event) => {
         'worklet';
+        seqSv.value += 1;
+        const seq = seqSv.value;
         const px = Math.floor(event.x / step);
         const py = Math.floor(event.y / step);
         if (px < 0 || py < 0 || px >= width || py >= height) {
@@ -238,10 +317,12 @@ export function CanvasView({
         activeSv.value = true;
         lastXsv.value = px;
         lastYsv.value = py;
-        runOnJS(onStrokeStart)(py * width + px);
+        runOnJS(onStrokeStart)(py * width + px, seq);
       })
       .onUpdate((event) => {
         'worklet';
+        seqSv.value += 1;
+        const seq = seqSv.value;
         if (!activeSv.value) {
           return;
         }
@@ -258,22 +339,25 @@ export function CanvasView({
         lastXsv.value = px;
         lastYsv.value = py;
         if (fromIndex !== toIndex) {
-          runOnJS(onStrokeSegment)(fromIndex, toIndex);
+          runOnJS(onStrokeSegment)(fromIndex, toIndex, seq);
         }
       })
       .onFinalize(() => {
         'worklet';
+        seqSv.value += 1;
+        const seq = seqSv.value;
         if (!activeSv.value) {
           return;
         }
         activeSv.value = false;
-        runOnJS(onStrokeEnd)();
+        runOnJS(onStrokeEnd)(seq);
       });
   }, [
     activeSv,
     gridGap,
     lastXsv,
     lastYsv,
+    seqSv,
     onStrokeSegment,
     onStrokeEnd,
     onStrokeStart,
@@ -283,7 +367,7 @@ export function CanvasView({
     scale,
   ]);
 
-  return (
+    return (
     <View
       style={[
         styles.container,
@@ -306,16 +390,19 @@ export function CanvasView({
           ]}
         >
           <Canvas style={{ width: viewWidth, height: viewHeight }}>
-            {checkerRects.map((rect, index) => (
-              <Rect
-                key={`checker_${index}`}
-                x={rect.x}
-                y={rect.y}
-                width={rect.w}
-                height={rect.h}
-                color={rect.color}
-              />
-            ))}
+            {checkerTiles.image
+              ? checkerTiles.draws.map((draw, index) => (
+                  <Image
+                    key={`checker_${index}`}
+                    image={checkerTiles.image}
+                    x={draw.x}
+                    y={draw.y}
+                    width={checkerTiles.tileSize}
+                    height={checkerTiles.tileSize}
+                    sampling={sampling}
+                  />
+                ))
+              : null}
             {image ? (
               <Image
                 image={image}
@@ -331,7 +418,8 @@ export function CanvasView({
       </GestureDetector>
     </View>
   );
-}
+  },
+);
 
 const styles = StyleSheet.create({
   container: {
