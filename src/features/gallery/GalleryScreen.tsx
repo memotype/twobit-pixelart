@@ -33,7 +33,6 @@ interface GalleryScreenProps {
   ) => void;
   refreshKey: number;
   theme: Theme;
-  topInset: number;
 }
 
 function clampInt(value: string, fallback: number): number {
@@ -61,7 +60,6 @@ export function GalleryScreen({
   onOpen,
   refreshKey,
   theme,
-  topInset,
 }: GalleryScreenProps): React.ReactElement {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(false);

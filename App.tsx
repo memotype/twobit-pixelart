@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import type { ProjectRuntime } from './src/lib/project/types';
 import { GalleryScreen } from './src/features/gallery/GalleryScreen';
@@ -79,7 +80,6 @@ function AppShell(): React.ReactElement {
           onOpen={handleOpen}
           refreshKey={refreshKey}
           theme={theme}
-          topInset={topInset}
         />
       )}
     </SafeAreaView>
@@ -88,9 +88,11 @@ function AppShell(): React.ReactElement {
 
 export default function App(): React.ReactElement {
   return (
-    <SafeAreaProvider>
-      <AppShell />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.container}>
+      <SafeAreaProvider>
+        <AppShell />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

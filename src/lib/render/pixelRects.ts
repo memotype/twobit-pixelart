@@ -10,7 +10,15 @@ export interface RenderRect {
   color: string;
 }
 
-export function buildRenderRects(project: ProjectRuntime): RenderRect[] {
+interface BuildOptions {
+  merge?: boolean;
+}
+
+export function buildRenderRects(
+  project: ProjectRuntime,
+  options: BuildOptions = {},
+): RenderRect[] {
+  const { merge = true } = options;
   const { width, height } = project.canvas;
   const { pixelSize, gridGap, bleed } = project.pixelGeometry;
   const step = pixelSize + gridGap;
@@ -19,7 +27,7 @@ export function buildRenderRects(project: ProjectRuntime): RenderRect[] {
   const transparent = transparentIndex === -1 ? 0 : transparentIndex;
   const rects: RenderRect[] = [];
 
-  if (gridGap > 0) {
+  if (gridGap > 0 || !merge) {
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const index = project.pixels[y * width + x];

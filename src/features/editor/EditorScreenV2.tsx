@@ -18,6 +18,7 @@ import * as Sharing from 'expo-sharing';
 
 import type { ProjectRuntime } from '../../lib/project/types';
 import { isTransparent, parseHexColor } from '../../lib/project/palette';
+import type { HexColor } from '../../lib/project/types';
 import {
   deleteProject,
   deleteWorkingCopy,
@@ -51,7 +52,40 @@ const AUTOSAVE_DELAY_MS = 1200;
 const UNDO_LIMIT = 100;
 const RAIL_SIDE: 'left' | 'right' = 'right';
 
-function findOpaqueRedIndex(colors: string[]): number {
+function* lineIndices(
+  fromIndex: number,
+  toIndex: number,
+  width: number,
+): Generator<number> {
+  const fromX = fromIndex % width;
+  const fromY = Math.floor(fromIndex / width);
+  const toX = toIndex % width;
+  const toY = Math.floor(toIndex / width);
+  let x = fromX;
+  let y = fromY;
+  const dx = Math.abs(toX - fromX);
+  const sx = fromX < toX ? 1 : -1;
+  const dy = -Math.abs(toY - fromY);
+  const sy = fromY < toY ? 1 : -1;
+  let error = dx + dy;
+  while (true) {
+    yield y * width + x;
+    if (x === toX && y === toY) {
+      break;
+    }
+    const doubled = error * 2;
+    if (doubled >= dy) {
+      error += dy;
+      x += sx;
+    }
+    if (doubled <= dx) {
+      error += dx;
+      y += sy;
+    }
+  }
+}
+
+function findOpaqueRedIndex(colors: HexColor[]): number {
   for (let i = 0; i < colors.length; i += 1) {
     const color = parseHexColor(colors[i]);
     if (
@@ -66,7 +100,7 @@ function findOpaqueRedIndex(colors: string[]): number {
   return -1;
 }
 
-function findFirstOpaqueIndex(colors: string[]): number {
+function findFirstOpaqueIndex(colors: HexColor[]): number {
   for (let i = 0; i < colors.length; i += 1) {
     const color = parseHexColor(colors[i]);
     if (color.a > 0) {
@@ -97,11 +131,19 @@ export function EditorScreenV2({
   const [isDirty, setIsDirty] = useState(isRestoredWorkingCopy);
   const [isSessionNew, setIsSessionNew] = useState(isNewProject);
   const [isRailExpanded, setIsRailExpanded] = useState(false);
+  const [dirtyBatch, setDirtyBatch] = useState({
+    version: 0,
+    indices: [] as number[],
+  });
+  const [fullRedrawToken, setFullRedrawToken] = useState(0);
   const [pixels, setPixels] = useState<Uint32Array>(
     () => new Uint32Array(project.pixels),
   );
   const strokeRef = useRef<StrokeState | null>(null);
   const pixelsRef = useRef<Uint32Array>(pixels);
+  const dirtyIndicesRef = useRef<Set<number>>(new Set());
+  const pendingPixelsRef = useRef<Uint32Array | null>(null);
+  const rafRef = useRef<number | null>(null);
   const promptOpenRef = useRef(false);
 
   useEffect(() => {
@@ -124,14 +166,56 @@ export function EditorScreenV2({
     await saveWorkingCopy(renderProject);
   }, AUTOSAVE_DELAY_MS);
 
-  const applyPixel = useCallback((index: number, value: number) => {
-    setPixels((prev) => {
-      const next = new Uint32Array(prev);
-      next[index] = value;
-      pixelsRef.current = next;
-      return next;
-    });
+  const flushPendingPixels = useCallback(() => {
+    if (!pendingPixelsRef.current) {
+      return;
+    }
+    const next = pendingPixelsRef.current;
+    pendingPixelsRef.current = null;
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pixelsRef.current = next;
+    setPixels(next);
+    const indices = Array.from(dirtyIndicesRef.current);
+    dirtyIndicesRef.current.clear();
+    if (indices.length === 0) {
+      setFullRedrawToken((prev) => prev + 1);
+      return;
+    }
+    setDirtyBatch((prev) => ({
+      version: prev.version + 1,
+      indices,
+    }));
   }, []);
+
+  const scheduleFlush = useCallback(() => {
+    if (rafRef.current !== null) {
+      return;
+    }
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      flushPendingPixels();
+    });
+  }, [flushPendingPixels]);
+
+  const getActivePixels = useCallback(() => {
+    return pendingPixelsRef.current ?? pixelsRef.current;
+  }, []);
+
+  const applyPixel = useCallback(
+    (index: number, value: number) => {
+      const base = getActivePixels();
+      if (!pendingPixelsRef.current) {
+        pendingPixelsRef.current = new Uint32Array(base);
+      }
+      pendingPixelsRef.current[index] = value;
+      dirtyIndicesRef.current.add(index);
+      scheduleFlush();
+    },
+    [getActivePixels, scheduleFlush],
+  );
 
   const handleStrokeStart = useCallback(
     (index: number) => {
@@ -144,14 +228,15 @@ export function EditorScreenV2({
       const paintValue = tool === 'eraser' ? transparentIndex : selectedIndex;
       const stroke = strokeRef.current;
       if (!stroke.seen.has(index)) {
+        const activePixels = getActivePixels();
         stroke.seen.add(index);
         stroke.indices.push(index);
-        stroke.before.push(pixelsRef.current[index]);
+        stroke.before.push(activePixels[index]);
         stroke.after.push(paintValue);
       }
       applyPixel(index, paintValue);
     },
-    [applyPixel, selectedIndex, tool, transparentIndex],
+    [applyPixel, getActivePixels, selectedIndex, tool, transparentIndex],
   );
 
   const handleStrokeMove = useCallback(
@@ -164,13 +249,27 @@ export function EditorScreenV2({
       if (stroke.seen.has(index)) {
         return;
       }
+      const activePixels = getActivePixels();
       stroke.seen.add(index);
       stroke.indices.push(index);
-      stroke.before.push(pixelsRef.current[index]);
+      stroke.before.push(activePixels[index]);
       stroke.after.push(paintValue);
       applyPixel(index, paintValue);
     },
-    [applyPixel, selectedIndex, tool, transparentIndex],
+    [applyPixel, getActivePixels, selectedIndex, tool, transparentIndex],
+  );
+
+  const handleStrokeSegment = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      for (const index of lineIndices(
+        fromIndex,
+        toIndex,
+        project.canvas.width,
+      )) {
+        handleStrokeMove(index);
+      }
+    },
+    [handleStrokeMove, project.canvas.width],
   );
 
   const handleStrokeEnd = useCallback(() => {
@@ -182,10 +281,11 @@ export function EditorScreenV2({
     if (stroke.indices.length === 0) {
       return;
     }
+    flushPendingPixels();
     setUndoState((state) => addPatch(state, stroke, UNDO_LIMIT));
     setIsDirty(true);
     autosave.markDirty();
-  }, [autosave]);
+  }, [autosave, flushPendingPixels]);
 
   const handleUndo = useCallback(() => {
     setUndoState((state) => {
@@ -193,12 +293,14 @@ export function EditorScreenV2({
       if (!patch) {
         return state;
       }
+      flushPendingPixels();
       setPixels((prev) => {
         const next = new Uint32Array(prev);
         applyPatch(next, patch, 'undo');
         pixelsRef.current = next;
         return next;
       });
+      setFullRedrawToken((prev) => prev + 1);
       return {
         undo: state.undo.slice(0, -1),
         redo: [...state.redo, patch],
@@ -206,7 +308,7 @@ export function EditorScreenV2({
     });
     setIsDirty(true);
     autosave.markDirty();
-  }, [autosave]);
+  }, [autosave, flushPendingPixels]);
 
   const handleRedo = useCallback(() => {
     setUndoState((state) => {
@@ -214,12 +316,14 @@ export function EditorScreenV2({
       if (!patch) {
         return state;
       }
+      flushPendingPixels();
       setPixels((prev) => {
         const next = new Uint32Array(prev);
         applyPatch(next, patch, 'redo');
         pixelsRef.current = next;
         return next;
       });
+      setFullRedrawToken((prev) => prev + 1);
       return {
         undo: [...state.undo, patch],
         redo: state.redo.slice(0, -1),
@@ -227,7 +331,7 @@ export function EditorScreenV2({
     });
     setIsDirty(true);
     autosave.markDirty();
-  }, [autosave]);
+  }, [autosave, flushPendingPixels]);
 
   const explicitSaveAndExit = useCallback(async () => {
     await saveProjectExplicit(renderProject);
@@ -240,9 +344,10 @@ export function EditorScreenV2({
     if (isSessionNew) {
       await deleteProject(renderProject.id);
     }
+    flushPendingPixels();
     await deleteWorkingCopy(renderProject.id);
     onExit();
-  }, [isSessionNew, onExit, renderProject.id]);
+  }, [flushPendingPixels, isSessionNew, onExit, renderProject.id]);
 
   const requestExit = useCallback(() => {
     if (!isDirty && !isSessionNew) {
@@ -343,9 +448,12 @@ export function EditorScreenV2({
         <CanvasView
           project={renderProject}
           onStrokeStart={handleStrokeStart}
-          onStrokeMove={handleStrokeMove}
+          onStrokeSegment={handleStrokeSegment}
           onStrokeEnd={handleStrokeEnd}
           theme={theme}
+          dirtyIndices={dirtyBatch.indices}
+          dirtyVersion={dirtyBatch.version}
+          fullRedrawToken={fullRedrawToken}
         />
       </View>
       <View
