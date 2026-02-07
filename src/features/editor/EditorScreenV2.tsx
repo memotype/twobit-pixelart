@@ -131,6 +131,7 @@ export function EditorScreenV2({
   const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil');
   const [selectedIndex, setSelectedIndex] = useState(defaultIndex);
   const [undoState, setUndoState] = useState(createUndoState());
+  const undoStateRef = useRef(undoState);
   const [isDirty, setIsDirty] = useState(isRestoredWorkingCopy);
   const [isSessionNew, setIsSessionNew] = useState(isNewProject);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -348,36 +349,34 @@ export function EditorScreenV2({
   }, [autosave, flushDirtyPixels, traceStroke]);
 
   const handleUndo = useCallback(() => {
-    setUndoState((state) => {
-      const patch = state.undo[state.undo.length - 1];
-      if (!patch) {
-        return state;
-      }
-      flushDirtyPixels();
-      applyPatch(pixelsRef.current, patch, 'undo');
-      canvasRef.current?.requestFullRedraw();
-      return {
-        undo: state.undo.slice(0, -1),
-        redo: [...state.redo, patch],
-      };
+    const state = undoStateRef.current;
+    const patch = state.undo[state.undo.length - 1];
+    if (!patch) {
+      return;
+    }
+    flushDirtyPixels();
+    applyPatch(pixelsRef.current, patch, 'undo');
+    canvasRef.current?.requestFullRedraw();
+    setUndoState({
+      undo: state.undo.slice(0, -1),
+      redo: [...state.redo, patch],
     });
     setIsDirty(true);
     autosave.markDirty();
   }, [autosave, flushDirtyPixels]);
 
   const handleRedo = useCallback(() => {
-    setUndoState((state) => {
-      const patch = state.redo[state.redo.length - 1];
-      if (!patch) {
-        return state;
-      }
-      flushDirtyPixels();
-      applyPatch(pixelsRef.current, patch, 'redo');
-      canvasRef.current?.requestFullRedraw();
-      return {
-        undo: [...state.undo, patch],
-        redo: state.redo.slice(0, -1),
-      };
+    const state = undoStateRef.current;
+    const patch = state.redo[state.redo.length - 1];
+    if (!patch) {
+      return;
+    }
+    flushDirtyPixels();
+    applyPatch(pixelsRef.current, patch, 'redo');
+    canvasRef.current?.requestFullRedraw();
+    setUndoState({
+      undo: [...state.undo, patch],
+      redo: state.redo.slice(0, -1),
     });
     setIsDirty(true);
     autosave.markDirty();
@@ -556,6 +555,10 @@ export function EditorScreenV2({
       }
     };
   }, []);
+
+  useEffect(() => {
+    undoStateRef.current = undoState;
+  }, [undoState]);
 
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {

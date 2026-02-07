@@ -101,6 +101,7 @@ export const CanvasView = forwardRef<CanvasViewHandle, CanvasViewProps>(
     fullRedrawToken: 0,
   });
   const surfaceRef = useRef<SkSurface | null>(null);
+  const imageRef = useRef<SkImage | null>(null);
   const paintsRef = useRef<SkPaint[]>([]);
   const clearPaintRef = useRef<SkPaint>(createClearPaint());
   const appliedRef = useRef({
@@ -162,6 +163,7 @@ export const CanvasView = forwardRef<CanvasViewHandle, CanvasViewProps>(
     }
     const next = Skia.Surface.Make(width, height);
     surfaceRef.current = next;
+    imageRef.current = null;
     return next;
   }, [project.canvas]);
 
@@ -213,7 +215,12 @@ export const CanvasView = forwardRef<CanvasViewHandle, CanvasViewProps>(
       }
       appliedRef.current.dirtyVersion = dirtyFrame.dirtyVersion;
     }
-    return surface.makeImageSnapshot();
+    const nextImage = surface.makeImageSnapshot(
+      undefined,
+      imageRef.current ?? undefined,
+    );
+    imageRef.current = nextImage;
+    return nextImage;
   }, [
     dirtyFrame.dirtyVersion,
     dirtyFrame.fullRedrawToken,
