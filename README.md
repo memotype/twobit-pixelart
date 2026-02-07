@@ -20,6 +20,15 @@ npm run md:lint
 - npm is the only supported package manager.
 - ASCII-only repo rules apply.
 
+## SVG parameterization concept
+
+See `SVG_SCHEMA.md` for the full, neutral (import/export) format spec.
+
+Short version:
+- Palette entries may define optional token names (e.g., `PRIMARY`).
+- Token metadata is stored via `data-token` on pixel groups.
+- Standard `fill="#RRGGBB"` remains for universal renderer support.
+
 ## Current status
 
 - Editor performance is smooth in production APK builds after recent
