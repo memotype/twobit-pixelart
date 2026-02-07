@@ -68,6 +68,23 @@ Two screens only:
    - Export: SVG + PNG (scale: 1x, 2x, 4x, 8x).
    - Autosave with visible status text.
 
+## UI iconography and touch targets (MVP)
+
+All in-app icons and icon-like controls MUST follow these rules:
+
+- Source icon grid: `24x24` logical pixels.
+- Icon drawing uses integer-aligned pixels only (no anti-aliasing).
+- Icon rendering scales by integer factors only to preserve crisp edges.
+- Minimum touch target for icon buttons: `44dp x 44dp`.
+- Icon artwork may be visually smaller than the touch target; center it with
+  padding.
+- UI icon assets must use transparent backgrounds.
+- Toolbar/menu icons should target a consistent visual mass (roughly `16x16`
+  inside the `24x24` grid) for visual balance.
+
+Implementation notes:
+- Prefer `24dp` rendered icon size for standard toolbar/rail buttons.
+- Primary actions may render at `28dp` to `32dp` when emphasis is needed.
 
 ## Persistence and back-button behavior (YAML-first, copy-on-write)
 
