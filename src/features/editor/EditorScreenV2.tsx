@@ -8,6 +8,9 @@ import React, {
 import {
   Alert,
   BackHandler,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -50,7 +53,6 @@ interface StrokeState {
 
 const AUTOSAVE_DELAY_MS = 1200;
 const UNDO_LIMIT = 100;
-const RAIL_SIDE: 'left' | 'right' = 'right';
 const STROKE_TRACE_ENABLED = true;
 
 function* lineIndices(
@@ -131,16 +133,25 @@ export function EditorScreenV2({
   const [undoState, setUndoState] = useState(createUndoState());
   const [isDirty, setIsDirty] = useState(isRestoredWorkingCopy);
   const [isSessionNew, setIsSessionNew] = useState(isNewProject);
-  const [isRailExpanded, setIsRailExpanded] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pixelBuffer] = useState<Uint32Array>(
     () => new Uint32Array(project.pixels),
   );
+  const [menuScroll, setMenuScroll] = useState({
+    x: 0,
+    viewWidth: 0,
+    contentWidth: 0,
+  });
+  const [showChevronHint, setShowChevronHint] = useState(false);
   const canvasRef = useRef<CanvasViewHandle | null>(null);
   const strokeRef = useRef<StrokeState | null>(null);
   const pixelsRef = useRef<Uint32Array>(pixelBuffer);
   const dirtyIndicesRef = useRef<Set<number>>(new Set());
   const rafRef = useRef<number | null>(null);
   const promptOpenRef = useRef(false);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const strokeIdRef = useRef(0);
   const traceRef = useRef({
     id: 0,
@@ -461,18 +472,87 @@ export function EditorScreenV2({
     }
   }, [autosave.status]);
 
-  const railBackground =
+  const canScrollLeft = useMemo(
+    () => menuScroll.x > 2,
+    [menuScroll.x],
+  );
+  const canScrollRight = useMemo(() => {
+    const maxScroll = Math.max(
+      0,
+      menuScroll.contentWidth - menuScroll.viewWidth,
+    );
+    return menuScroll.x < maxScroll - 2;
+  }, [
+    menuScroll.contentWidth,
+    menuScroll.viewWidth,
+    menuScroll.x,
+  ]);
+
+  const menuBackground =
     theme.scheme === 'dark'
       ? 'rgba(12, 12, 12, 0.72)'
       : 'rgba(255, 255, 255, 0.78)';
-  const railPositionStyle =
-    RAIL_SIDE === 'left' ? styles.railLeft : styles.railRight;
+
+  const handleMenuLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    setMenuScroll((prev) => ({
+      ...prev,
+      viewWidth: width,
+    }));
+  }, []);
+
+  const handleMenuContentSizeChange = useCallback((width: number) => {
+    setMenuScroll((prev) => ({
+      ...prev,
+      contentWidth: width,
+    }));
+  }, []);
+
+  const handleMenuScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const x = event.nativeEvent.contentOffset.x;
+      setMenuScroll((prev) => (prev.x === x ? prev : { ...prev, x }));
+      if (x > 2) {
+        setShowChevronHint(false);
+      }
+    },
+    [],
+  );
+
+  const clearChevronTimer = useCallback(() => {
+    if (hintTimerRef.current) {
+      clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+  }, []);
+
+  const handleToggleMenu = useCallback(() => {
+    setIsMenuOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setShowChevronHint(true);
+        clearChevronTimer();
+        hintTimerRef.current = setTimeout(() => {
+          setShowChevronHint(false);
+          hintTimerRef.current = null;
+        }, 2800);
+      } else {
+        clearChevronTimer();
+        setShowChevronHint(false);
+      }
+      return next;
+    });
+  }, [clearChevronTimer]);
 
   useEffect(() => {
     return () => {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
+      }
+      if (hintTimerRef.current) {
+        clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = null;
       }
     };
   }, []);
@@ -504,163 +584,178 @@ export function EditorScreenV2({
         />
       </View>
       <View
-        style={[
-          styles.rail,
-          railPositionStyle,
-          { backgroundColor: railBackground },
-          { top: topInset + 12 },
-          isRailExpanded ? styles.railExpanded : styles.railCollapsed,
-        ]}
+        pointerEvents="box-none"
+        style={[styles.menuRow, { top: topInset * 0.12 }]}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            isRailExpanded ? 'Collapse menu' : 'Expand menu'
-          }
-          style={[
-            styles.hamburger,
-            { borderColor: theme.colors.border },
-          ]}
-          onPress={() => setIsRailExpanded((prev) => !prev)}
-        >
+        {isMenuOpen ? (
           <View
+            pointerEvents="auto"
             style={[
-              styles.hamburgerBar,
-              { backgroundColor: theme.colors.text },
+              styles.menuPanel,
+              { backgroundColor: menuBackground },
+              { borderColor: theme.colors.border },
             ]}
-          />
-          <View
-            style={[
-              styles.hamburgerBar,
-              { backgroundColor: theme.colors.text },
-            ]}
-          />
-          <View
-            style={[
-              styles.hamburgerBar,
-              { backgroundColor: theme.colors.text },
-            ]}
-          />
-        </Pressable>
-        <ScrollView
-          contentContainerStyle={styles.railContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <Pressable
-            style={[
-              styles.railButton,
-              { backgroundColor: theme.colors.primary },
-            ]}
-            onPress={requestExit}
           >
-            <Text
-              style={[
-                styles.railButtonText,
-                { color: theme.colors.primaryText },
-              ]}
+            <ScrollView
+              horizontal
+              contentContainerStyle={styles.menuContent}
+              onLayout={handleMenuLayout}
+              onContentSizeChange={handleMenuContentSizeChange}
+              onScroll={handleMenuScroll}
+              scrollEventThrottle={16}
+              showsHorizontalScrollIndicator={false}
             >
-              {isRailExpanded ? 'Gallery' : 'Exit'}
-            </Text>
-          </Pressable>
-          <View style={styles.railGroup}>
-            {isRailExpanded ? (
-              <Text
-                style={[styles.railLabel, { color: theme.colors.textMuted }]}
-              >
-                Tools
-              </Text>
-            ) : null}
-            <Pressable
-              style={[
-                styles.railButton,
-                { backgroundColor: theme.colors.card },
-                tool === 'pencil' && { backgroundColor: theme.colors.primary },
-              ]}
-              onPress={() => setTool('pencil')}
-            >
-              <Text
-                style={[
-                  styles.railButtonText,
-                  { color: theme.colors.text },
-                  tool === 'pencil' && { color: theme.colors.primaryText },
-                ]}
-              >
-                {isRailExpanded ? 'Pencil' : 'P'}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.railButton,
-                { backgroundColor: theme.colors.card },
-                tool === 'eraser' && { backgroundColor: theme.colors.primary },
-              ]}
-              onPress={() => setTool('eraser')}
-            >
-              <Text
-                style={[
-                  styles.railButtonText,
-                  { color: theme.colors.text },
-                  tool === 'eraser' && { color: theme.colors.primaryText },
-                ]}
-              >
-                {isRailExpanded ? 'Eraser' : 'E'}
-              </Text>
-            </Pressable>
-          </View>
-          <View style={styles.railGroup}>
-            {isRailExpanded ? (
-              <Text
-                style={[styles.railLabel, { color: theme.colors.textMuted }]}
-              >
-                History
-              </Text>
-            ) : null}
-            <Pressable
-              style={[
-                styles.railButton,
-                { backgroundColor: theme.colors.primary },
-                undoState.undo.length === 0 && styles.disabled,
-              ]}
-              onPress={handleUndo}
-              disabled={undoState.undo.length === 0}
-            >
-              <Text
-                style={[
-                  styles.railButtonText,
-                  { color: theme.colors.primaryText },
-                ]}
-              >
-                {isRailExpanded ? 'Undo' : 'U'}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.railButton,
-                { backgroundColor: theme.colors.primary },
-                undoState.redo.length === 0 && styles.disabled,
-              ]}
-              onPress={handleRedo}
-              disabled={undoState.redo.length === 0}
-            >
-              <Text
-                style={[
-                  styles.railButtonText,
-                  { color: theme.colors.primaryText },
-                ]}
-              >
-                {isRailExpanded ? 'Redo' : 'R'}
-              </Text>
-            </Pressable>
-          </View>
-          {isRailExpanded ? (
-            <>
-              <View style={styles.railGroup}>
+              <View style={styles.menuGroup}>
                 <Text
-                  style={[styles.railLabel, { color: theme.colors.textMuted }]}
+                  style={[
+                    styles.menuLabel,
+                    { color: theme.colors.textMuted },
+                  ]}
+                >
+                  Project
+                </Text>
+                <Pressable
+                  style={[
+                    styles.menuButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                  onPress={requestExit}
+                >
+                  <Text
+                    style={[
+                      styles.menuButtonText,
+                      { color: theme.colors.primaryText },
+                    ]}
+                  >
+                    Gallery
+                  </Text>
+                </Pressable>
+                <Text
+                  style={[styles.menuText, { color: theme.colors.text }]}
+                  numberOfLines={1}
+                >
+                  {project.name}
+                </Text>
+                <Text
+                  style={[styles.menuText, { color: theme.colors.textMuted }]}
+                >
+                  {project.canvas.width}x{project.canvas.height}
+                </Text>
+              </View>
+              <View style={styles.menuGroup}>
+                <Text
+                  style={[
+                    styles.menuLabel,
+                    { color: theme.colors.textMuted },
+                  ]}
+                >
+                  Tools
+                </Text>
+                <View style={styles.menuRowItems}>
+                  <Pressable
+                    style={[
+                      styles.menuButton,
+                      { backgroundColor: theme.colors.card },
+                      tool === 'pencil' && {
+                        backgroundColor: theme.colors.primary,
+                      },
+                    ]}
+                    onPress={() => setTool('pencil')}
+                  >
+                    <Text
+                      style={[
+                        styles.menuButtonText,
+                        { color: theme.colors.text },
+                        tool === 'pencil' && {
+                          color: theme.colors.primaryText,
+                        },
+                      ]}
+                    >
+                      Pencil
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.menuButton,
+                      { backgroundColor: theme.colors.card },
+                      tool === 'eraser' && {
+                        backgroundColor: theme.colors.primary,
+                      },
+                    ]}
+                    onPress={() => setTool('eraser')}
+                  >
+                    <Text
+                      style={[
+                        styles.menuButtonText,
+                        { color: theme.colors.text },
+                        tool === 'eraser' && {
+                          color: theme.colors.primaryText,
+                        },
+                      ]}
+                    >
+                      Eraser
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.menuGroup}>
+                <Text
+                  style={[
+                    styles.menuLabel,
+                    { color: theme.colors.textMuted },
+                  ]}
+                >
+                  History
+                </Text>
+                <View style={styles.menuRowItems}>
+                  <Pressable
+                    style={[
+                      styles.menuButton,
+                      { backgroundColor: theme.colors.primary },
+                      undoState.undo.length === 0 && styles.disabled,
+                    ]}
+                    onPress={handleUndo}
+                    disabled={undoState.undo.length === 0}
+                  >
+                    <Text
+                      style={[
+                        styles.menuButtonText,
+                        { color: theme.colors.primaryText },
+                      ]}
+                    >
+                      Undo
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.menuButton,
+                      { backgroundColor: theme.colors.primary },
+                      undoState.redo.length === 0 && styles.disabled,
+                    ]}
+                    onPress={handleRedo}
+                    disabled={undoState.redo.length === 0}
+                  >
+                    <Text
+                      style={[
+                        styles.menuButtonText,
+                        { color: theme.colors.primaryText },
+                      ]}
+                    >
+                      Redo
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.menuGroup}>
+                <Text
+                  style={[
+                    styles.menuLabel,
+                    { color: theme.colors.textMuted },
+                  ]}
                 >
                   Palette
                 </Text>
-                <View style={styles.paletteRow}>
+                <View style={styles.menuPaletteRow}>
                   {project.palette.colors.map((color, index) => {
                     const selected = index === selectedIndex;
                     return (
@@ -678,71 +773,158 @@ export function EditorScreenV2({
                   })}
                 </View>
               </View>
-              <View style={styles.railGroup}>
+              <View style={styles.menuGroup}>
                 <Text
-                  style={[styles.railLabel, { color: theme.colors.textMuted }]}
+                  style={[
+                    styles.menuLabel,
+                    { color: theme.colors.textMuted },
+                  ]}
                 >
                   Export
                 </Text>
                 <Pressable
                   style={[
-                    styles.railButton,
+                    styles.menuButton,
                     { backgroundColor: theme.colors.primary },
                   ]}
                   onPress={handleExportSvg}
                 >
                   <Text
                     style={[
-                      styles.railButtonText,
+                      styles.menuButtonText,
                       { color: theme.colors.primaryText },
                     ]}
                   >
                     Export SVG
                   </Text>
                 </Pressable>
-                {[1, 2, 4, 8].map((scale) => (
-                  <Pressable
-                    key={`${scale}x`}
-                    style={[
-                      styles.railButton,
-                      { backgroundColor: theme.colors.primary },
-                    ]}
-                    onPress={() => void handleExportPng(scale as PngScale)}
-                  >
-                    <Text
+                <View style={styles.menuRowItems}>
+                  {[1, 2, 4, 8].map((scale) => (
+                    <Pressable
+                      key={`${scale}x`}
                       style={[
-                        styles.railButtonText,
-                        { color: theme.colors.primaryText },
+                        styles.menuButton,
+                        { backgroundColor: theme.colors.primary },
                       ]}
+                      onPress={() => void handleExportPng(scale as PngScale)}
                     >
-                      PNG {scale}x
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <View style={styles.railGroup}>
+                      <Text
+                        style={[
+                          styles.menuButtonText,
+                          { color: theme.colors.primaryText },
+                        ]}
+                      >
+                        PNG {scale}x
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <Text
-                  style={[styles.railLabel, { color: theme.colors.textMuted }]}
-                >
-                  Project
-                </Text>
-                <Text style={[styles.railText, { color: theme.colors.text }]}>
-                  {project.name}
-                </Text>
-                <Text
-                  style={[styles.railText, { color: theme.colors.textMuted }]}
-                >
-                  {project.canvas.width}x{project.canvas.height}
-                </Text>
-                <Text
-                  style={[styles.railText, { color: theme.colors.textMuted }]}
+                  style={[styles.menuText, { color: theme.colors.textMuted }]}
                 >
                   {autosaveText}
                 </Text>
               </View>
-            </>
-          ) : null}
-        </ScrollView>
+            </ScrollView>
+            {canScrollLeft ? (
+              <View
+                pointerEvents="none"
+                style={[styles.menuFade, styles.menuFadeLeft]}
+              >
+                <View
+                  style={[
+                    styles.menuFadeBar,
+                    { backgroundColor: menuBackground, opacity: 0.5 },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.menuFadeBar,
+                    { backgroundColor: menuBackground, opacity: 0.3 },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.menuFadeBar,
+                    { backgroundColor: menuBackground, opacity: 0.15 },
+                  ]}
+                />
+              </View>
+            ) : null}
+            {canScrollRight ? (
+              <View
+                pointerEvents="none"
+                style={[styles.menuFade, styles.menuFadeRight]}
+              >
+                <View
+                  style={[
+                    styles.menuFadeBar,
+                    { backgroundColor: menuBackground, opacity: 0.5 },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.menuFadeBar,
+                    { backgroundColor: menuBackground, opacity: 0.3 },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.menuFadeBar,
+                    { backgroundColor: menuBackground, opacity: 0.15 },
+                  ]}
+                />
+              </View>
+            ) : null}
+            {showChevronHint && canScrollRight ? (
+              <Text
+                pointerEvents="none"
+                style={[
+                  styles.menuChevronHint,
+                  { color: theme.colors.text },
+                ]}
+              >
+                &gt;
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isMenuOpen ? 'Close menu' : 'Open menu'}
+          style={[
+            styles.hamburger,
+            { borderColor: theme.colors.border },
+            { backgroundColor: menuBackground },
+          ]}
+          onPress={handleToggleMenu}
+        >
+          <View
+            style={[
+              styles.hamburgerIcon,
+              isMenuOpen && styles.hamburgerIconOpen,
+            ]}
+          >
+            <View
+              style={[
+                styles.hamburgerBar,
+                { backgroundColor: theme.colors.text },
+              ]}
+            />
+            <View
+              style={[
+                styles.hamburgerBar,
+                { backgroundColor: theme.colors.text },
+              ]}
+            />
+            <View
+              style={[
+                styles.hamburgerBar,
+                { backgroundColor: theme.colors.text },
+              ]}
+            />
+          </View>
+        </Pressable>
       </View>
     </View>
   );
@@ -755,72 +937,107 @@ const styles = StyleSheet.create({
   canvasLayer: {
     flex: 1,
   },
-  rail: {
+  menuRow: {
     position: 'absolute',
-    bottom: 12,
+    right: 12,
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  menuPanel: {
+    position: 'absolute',
+    right: 54,
+    top: 0,
+    maxWidth: 620,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  railLeft: {
-    left: 12,
-  },
-  railRight: {
-    right: 12,
-  },
-  railCollapsed: {
-    width: 68,
-  },
-  railExpanded: {
-    width: 228,
-  },
-  railContent: {
-    gap: 12,
-    paddingBottom: 12,
   },
   hamburger: {
-    alignSelf: 'center',
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+  },
+  hamburgerIcon: {
     gap: 4,
+    transform: [{ rotate: '0deg' }],
+  },
+  hamburgerIconOpen: {
+    transform: [{ rotate: '90deg' }],
   },
   hamburgerBar: {
     width: 18,
     height: 2,
     borderRadius: 1,
   },
-  railGroup: {
+  menuContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+  },
+  menuFade: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 30,
+    flexDirection: 'row',
+  },
+  menuFadeLeft: {
+    left: 0,
+  },
+  menuFadeRight: {
+    right: 0,
+    flexDirection: 'row-reverse',
+  },
+  menuFadeBar: {
+    width: 10,
+  },
+  menuChevronHint: {
+    position: 'absolute',
+    right: 10,
+    top: '50%',
+    fontSize: 24,
+    fontWeight: '600',
+    transform: [{ translateY: -12 }],
+    opacity: 0.7,
+  },
+  menuGroup: {
+    minWidth: 120,
     gap: 8,
   },
-  railLabel: {
-    fontSize: 11,
+  menuRowItems: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  menuLabel: {
+    fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  railButton: {
-    paddingVertical: 8,
+  menuButton: {
+    paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 10,
     alignItems: 'center',
   },
-  railButtonText: {
+  menuButtonText: {
     fontSize: 12,
     fontWeight: '600',
   },
-  railText: {
+  menuText: {
     fontSize: 12,
   },
-  paletteRow: {
+  menuPaletteRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
+    maxWidth: 180,
   },
   paletteSwatch: {
     width: 24,

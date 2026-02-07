@@ -31,11 +31,3 @@ None.
      `makeImageSnapshot()` and checkerboard draw overhead.
    - Resolution: validate on-device at ~250x250 and, if needed, remove
      per-batch snapshot work and/or cache the checkerboard.
-
-4. [medium] Editor menu overlays drawing area and blocks input
-   - The right-side editor menu expands over the canvas; the underlying
-     area is not drawable, reducing usable space.
-   - Desired direction: replace the vertical rail with a hamburger in the
-     upper-right that expands a horizontal menu. The hamburger must only
-     open on tap (not on accidental drag-over) and rotates 90 degrees when
-     open.
