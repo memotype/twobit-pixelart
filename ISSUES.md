@@ -32,10 +32,10 @@ None.
    - Resolution: validate on-device at ~250x250 and, if needed, remove
      per-batch snapshot work and/or cache the checkerboard.
 
-4. [high] Initial drag gap still appears after first one or two pixels
-   - User reports a persistent pattern: initial tap paints one or two pixels,
-     then a gap appears before line continuity resumes.
-   - Debug instrumentation is now enabled in `EditorScreenV2` and `CanvasView`
-     to trace start/segment/end callback ordering and first applied pixels.
-   - Resolution: keep instrumentation until APK test confirms issue remains
-     resolved, then remove debug logs.
+4. [medium] Editor menu overlays drawing area and blocks input
+   - The right-side editor menu expands over the canvas; the underlying
+     area is not drawable, reducing usable space.
+   - Desired direction: replace the vertical rail with a hamburger in the
+     upper-right that expands a horizontal menu. The hamburger must only
+     open on tap (not on accidental drag-over) and rotates 90 degrees when
+     open.

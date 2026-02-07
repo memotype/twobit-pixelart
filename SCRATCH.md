@@ -71,6 +71,7 @@ Current state notes for handoff.
 - Most recent checks run in this session:
   - `npm run lint`
   - `npm run typecheck`
+  - `npm run md:lint`
 
 ## Notes
 
@@ -80,7 +81,18 @@ Current state notes for handoff.
   - SVG export is string-built in `src/lib/export/svgExport.ts`.
   - PNG export is custom-encoded in `src/lib/export/pngExport.ts`.
   - `react-native-svg` was removed and is not used for export.
+- Production APK test confirmed smooth editor performance after optimizations.
+- Debug stroke tracing is still enabled; remove once no longer needed.
 
 ## Outstanding issues
 
 - See `ISSUES.md`.
+
+## Next task focus
+
+- Redesign editor menu:
+  - Replace right-side vertical rail with a hamburger icon in the upper-right.
+  - Menu expands horizontally (not vertically) when tapped.
+  - Hamburger rotates 90 degrees when open.
+  - Opening must be tap-only (not triggered by drag-over while drawing).
+  - Goal: reclaim drawing area; avoid non-drawable overlay regions.
