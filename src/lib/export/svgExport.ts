@@ -61,13 +61,21 @@ function buildRects(project: ProjectRuntime): SvgRect[] {
   }));
 }
 
-export function exportSvg(project: ProjectRuntime): string {
+interface SvgExportOptions {
+  fillMode?: 'color' | 'currentColor';
+}
+
+export function exportSvg(
+  project: ProjectRuntime,
+  options: SvgExportOptions = {},
+): string {
   const { width, height } = project.canvas;
   const { pixelSize, gridGap } = project.pixelGeometry;
   const step = pixelSize + gridGap;
   const svgWidth = width * step - gridGap;
   const svgHeight = height * step - gridGap;
   const rects = buildRects(project);
+  const fillMode = options.fillMode ?? 'color';
 
   const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
@@ -88,12 +96,14 @@ export function exportSvg(project: ProjectRuntime): string {
     );
   }
   for (const rect of rects) {
+    const fill =
+      fillMode === 'currentColor' ? 'currentColor' : rect.color;
     lines.push(
       `    <rect x="${formatNumber(rect.x)}" ` +
         `y="${formatNumber(rect.y)}" ` +
         `width="${formatNumber(rect.w)}" ` +
         `height="${formatNumber(rect.h)}" ` +
-        `fill="${rect.color}"/>`,
+        `fill="${fill}"/>`,
     );
   }
   lines.push('  </g>');
@@ -111,10 +121,19 @@ function sanitizeFilename(name: string): string {
 
 export async function exportSvgFile(
   project: ProjectRuntime,
+  options: SvgExportOptions = {},
+  suffix = '',
 ): Promise<string> {
-  const svg = exportSvg(project);
-  const filename = `${sanitizeFilename(project.name)}.svg`;
+  const svg = exportSvg(project, options);
+  const base = sanitizeFilename(project.name);
+  const filename = `${base}${suffix}.svg`;
   const path = `${FileSystem.cacheDirectory}${filename}`;
   await FileSystem.writeAsStringAsync(path, svg);
   return path;
+}
+
+export async function exportSvgFileTintable(
+  project: ProjectRuntime,
+): Promise<string> {
+  return exportSvgFile(project, { fillMode: 'currentColor' }, '_tint');
 }

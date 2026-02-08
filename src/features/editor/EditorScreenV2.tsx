@@ -28,12 +28,16 @@ import {
   saveProjectExplicit,
   saveWorkingCopy,
 } from '../../lib/storage/projectStorage';
-import { exportSvgFile } from '../../lib/export/svgExport';
+import {
+  exportSvgFile,
+  exportSvgFileTintable,
+} from '../../lib/export/svgExport';
 import { exportPng, sharePng, type PngScale } from '../../lib/export/pngExport';
 import { CanvasView, type CanvasViewHandle } from './CanvasView';
 import { addPatch, applyPatch, createUndoState } from './undo';
 import { useAutosave } from './useAutosave';
 import type { Theme } from '../../ui/theme';
+import { Icon } from '../../ui/icons/Icon';
 
 interface EditorScreenProps {
   project: ProjectRuntime;
@@ -450,6 +454,17 @@ export function EditorScreenV2({
     }
   }, [buildProjectSnapshot]);
 
+  const handleExportSvgTintable = useCallback(async () => {
+    const path = await exportSvgFileTintable(buildProjectSnapshot());
+    const available = await Sharing.isAvailableAsync();
+    if (available) {
+      await Sharing.shareAsync(path, {
+        mimeType: 'image/svg+xml',
+        dialogTitle: 'Share Tintable SVG',
+      });
+    }
+  }, [buildProjectSnapshot]);
+
   const handleExportPng = useCallback(
     async (scale: PngScale) => {
       const path = await exportPng(buildProjectSnapshot(), scale);
@@ -624,14 +639,16 @@ export function EditorScreenV2({
                   ]}
                   onPress={requestExit}
                 >
-                  <Text
-                    style={[
+                  <Icon
+                    name="gallery"
+                    size={20}
+                    color={theme.colors.primaryText}
+                    fallbackLabel="Gallery"
+                    labelStyle={[
                       styles.menuButtonText,
                       { color: theme.colors.primaryText },
                     ]}
-                  >
-                    Gallery
-                  </Text>
+                  />
                 </Pressable>
                 <Text
                   style={[styles.menuText, { color: theme.colors.text }]}
@@ -665,17 +682,23 @@ export function EditorScreenV2({
                     ]}
                     onPress={() => setTool('pencil')}
                   >
-                    <Text
-                      style={[
+                    <Icon
+                      name="pencil"
+                      size={20}
+                      color={
+                        tool === 'pencil'
+                          ? theme.colors.primaryText
+                          : theme.colors.text
+                      }
+                      fallbackLabel="Pencil"
+                      labelStyle={[
                         styles.menuButtonText,
                         { color: theme.colors.text },
                         tool === 'pencil' && {
                           color: theme.colors.primaryText,
                         },
                       ]}
-                    >
-                      Pencil
-                    </Text>
+                    />
                   </Pressable>
                   <Pressable
                     style={[
@@ -687,17 +710,23 @@ export function EditorScreenV2({
                     ]}
                     onPress={() => setTool('eraser')}
                   >
-                    <Text
-                      style={[
+                    <Icon
+                      name="eraser"
+                      size={20}
+                      color={
+                        tool === 'eraser'
+                          ? theme.colors.primaryText
+                          : theme.colors.text
+                      }
+                      fallbackLabel="Eraser"
+                      labelStyle={[
                         styles.menuButtonText,
                         { color: theme.colors.text },
                         tool === 'eraser' && {
                           color: theme.colors.primaryText,
                         },
                       ]}
-                    >
-                      Eraser
-                    </Text>
+                    />
                   </Pressable>
                 </View>
               </View>
@@ -720,14 +749,16 @@ export function EditorScreenV2({
                     onPress={handleUndo}
                     disabled={undoState.undo.length === 0}
                   >
-                    <Text
-                      style={[
+                    <Icon
+                      name="undo"
+                      size={20}
+                      color={theme.colors.primaryText}
+                      fallbackLabel="Undo"
+                      labelStyle={[
                         styles.menuButtonText,
                         { color: theme.colors.primaryText },
                       ]}
-                    >
-                      Undo
-                    </Text>
+                    />
                   </Pressable>
                   <Pressable
                     style={[
@@ -738,14 +769,16 @@ export function EditorScreenV2({
                     onPress={handleRedo}
                     disabled={undoState.redo.length === 0}
                   >
-                    <Text
-                      style={[
+                    <Icon
+                      name="redo"
+                      size={20}
+                      color={theme.colors.primaryText}
+                      fallbackLabel="Redo"
+                      labelStyle={[
                         styles.menuButtonText,
                         { color: theme.colors.primaryText },
                       ]}
-                    >
-                      Redo
-                    </Text>
+                    />
                   </Pressable>
                 </View>
               </View>
@@ -792,14 +825,34 @@ export function EditorScreenV2({
                   ]}
                   onPress={handleExportSvg}
                 >
-                  <Text
-                    style={[
+                  <Icon
+                    name="export"
+                    size={20}
+                    color={theme.colors.primaryText}
+                    fallbackLabel="Export SVG"
+                    labelStyle={[
                       styles.menuButtonText,
                       { color: theme.colors.primaryText },
                     ]}
-                  >
-                    Export SVG
-                  </Text>
+                  />
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.menuButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                  onPress={handleExportSvgTintable}
+                >
+                  <Icon
+                    name="export"
+                    size={20}
+                    color={theme.colors.primaryText}
+                    fallbackLabel="SVG Tint"
+                    labelStyle={[
+                      styles.menuButtonText,
+                      { color: theme.colors.primaryText },
+                    ]}
+                  />
                 </Pressable>
                 <View style={styles.menuRowItems}>
                   {[1, 2, 4, 8].map((scale) => (
